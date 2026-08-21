@@ -2,7 +2,18 @@
 #include <random>
 #include <string>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    // コンソールの入出力コードページをUTF-8に合わせる。既定のコードページ(Shift-JIS等)の
+    // ままだと、UTF-8で出力した日本語のメッセージが文字化けする。
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+
     constexpr int kMin = 1;
     constexpr int kMax = 100;
     constexpr int kMaxAttempts = 10;

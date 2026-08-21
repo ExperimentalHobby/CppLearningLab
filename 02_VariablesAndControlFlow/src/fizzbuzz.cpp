@@ -1,7 +1,17 @@
 #include <iostream>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 int main() {
+#ifdef _WIN32
+    // コンソールの出力コードページをUTF-8に合わせる。本プログラムの出力はASCIIのみだが、
+    // 同課題内の他プログラム(日本語出力あり)と同じ初期化を統一しておく。
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     constexpr int kMin = 1;
     constexpr int kMax = 30;
 

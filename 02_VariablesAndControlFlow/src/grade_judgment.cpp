@@ -3,6 +3,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace {
 
 // 0〜100点を10点刻みでA〜Fに判定する。switchのフォールスルーで
@@ -26,6 +30,12 @@ std::string JudgeGrade(int score) {
 }  // namespace
 
 int main() {
+#ifdef _WIN32
+    // コンソールの出力コードページをUTF-8に合わせる。既定のコードページ(Shift-JIS等)の
+    // ままだと、UTF-8で出力した日本語（"点"など）が文字化けする。
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+
     const std::vector<std::pair<std::string, int>> students = {
         {"Alice", 95}, {"Bob", 82}, {"Carol", 71}, {"Dave", 58}, {"Eve", 100},
     };

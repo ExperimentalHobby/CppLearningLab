@@ -124,3 +124,33 @@ CMake経由でVisual Studioを利用する。
 避けられる。新しい課題を追加する際は、`CMakeLists.txt` に加えて `CMakePresets.json`
 （[01_BuildEnvironmentSetup](01_BuildEnvironmentSetup/CMakePresets.json) をテンプレートとする）
 も一緒に配置すること。
+
+## 日本語を扱う際の文字コードの注意点
+
+ソースコードは全てUTF-8で記述する。Windows(MSVC)環境では以下の2点を合わせて
+対応しないと、日本語のコメントや出力文字列が文字化けする（[02_VariablesAndControlFlow](02_VariablesAndControlFlow)
+で実例と対処済み）。
+
+- **コンパイル時**: `CMakeLists.txt` でMSVC向けに `/utf-8` フラグを付ける
+  （既定のコードページでソースを誤読され、日本語コメントを含む行以降が構文エラーになるのを防ぐ）。
+  ```cmake
+  if(MSVC)
+      add_compile_options(/utf-8)
+  endif()
+  ```
+- **実行時**: `main()` の先頭で `SetConsoleOutputCP(CP_UTF8)`（標準入力も扱うなら
+  `SetConsoleCP(CP_UTF8)` も）を呼ぶ（`<windows.h>`、`_WIN32` でガード）。
+  コンソールの既定コードページ(Shift-JIS等)のままだと、UTF-8で出力した日本語が
+  文字化けする。これにより `chcp 65001` を事前に手動実行する必要がなくなる。
+  ```cpp
+  #ifdef _WIN32
+  #include <windows.h>
+  #endif
+
+  int main() {
+  #ifdef _WIN32
+      SetConsoleOutputCP(CP_UTF8);
+  #endif
+      // ...
+  }
+  ```
