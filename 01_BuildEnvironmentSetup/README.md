@@ -44,13 +44,16 @@ cmake --build build
 （詳細はルート [README.md](../README.md#cmakeとvisual-studioの使い分け) を参照）。
 VS2026でCMakeプロジェクトを直接開発・デバッグするには以下のいずれかを使う。
 
-- **フォルダを開く**: VS2026のスタート画面で「フォルダーを開く」からこの
-  `01_BuildEnvironmentSetup` フォルダを選択する。同梱の `CMakePresets.json` が
-  自動検出され、`x64-debug` / `x64-release` の構成が選択できる状態でビルド・
-  デバッグ実行が可能。
-- **ソリューションファイルを生成する**（従来型のプロジェクト管理をしたい場合）:
-  ```sh
-  cmake -S . -B build -G "Visual Studio 18 2026" -A x64
-  ```
-  生成された `build/BuildEnvironmentSetup.sln` をVS2026で開く。生成物は
-  `.gitignore` 対象のためコミットされない。
+**この2つは同じ結果に至る2通りの手順ではなく、生成される場所・形式が異なる別々の
+ビルドフローである点に注意。** どちらか一方を選び、混在させない（例: 片方で生成した
+ディレクトリをもう片方のビルドに使い回さない）。
+
+| | フォルダを開く | ソリューションファイルを生成 |
+|---|---|---|
+| 使い方 | VS2026で「フォルダーを開く」→ `01_BuildEnvironmentSetup` を選択 | `cmake -S . -B build -G "Visual Studio 18 2026" -A x64` を実行後、生成された `.sln` をVS2026で開く |
+| 何が使われるか | 同梱の `CMakePresets.json`（`x64-debug`/`x64-release`） | コマンドで明示した `Visual Studio 18 2026` ジェネレーター |
+| 内部のビルドシステム | Ninja（シングルコンフィグ） | MSBuild（マルチコンフィグ） |
+| 出力先 | `out/build/x64-debug/` など（`.sln`/`.vcxproj`は生成されない） | `build/`（`BuildEnvironmentSetup.sln`など`.vcxproj`一式が生成される） |
+
+いずれの出力先も `.gitignore` 対象のためコミットされない。迷ったら**フォルダを開く**方を
+使う（`CMakePresets.json`により構成が明示されており、他課題でも同じ手順で統一できるため）。
