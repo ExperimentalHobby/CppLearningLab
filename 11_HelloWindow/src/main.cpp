@@ -1,0 +1,66 @@
+// 11. ウィンドウ表示の基本
+//
+// GUIアプリケーションの最小構成: ウィンドウクラスを登録し、ウィンドウを1枚作成して
+// メッセージループを回すだけのプログラム。以降のGUI課題(12〜18)も基本的に
+// この骨格(WinMain -> RegisterClassEx -> CreateWindowEx -> メッセージループ)の上に
+// コントロールや処理を追加していく。
+#include <windows.h>
+
+namespace {
+
+constexpr wchar_t kWindowClassName[] = L"HelloWindowClass";
+constexpr wchar_t kWindowTitle[] = L"11. Hello Window - C++ Learning Lab";
+
+// ウィンドウプロシージャ: このウィンドウ宛てのメッセージ(イベント)を処理する。
+LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_DESTROY:
+            // ウィンドウが破棄された(閉じるボタンが押された等)ら、メッセージループを
+            // 終了させるためにWM_QUITを送る。
+            PostQuitMessage(0);
+            return 0;
+        default:
+            return DefWindowProc(hwnd, message, wParam, lParam);
+    }
+}
+
+ATOM RegisterMainWindowClass(HINSTANCE hInstance) {
+    WNDCLASSEXW wc{};
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    wc.lpszClassName = kWindowClassName;
+    return RegisterClassExW(&wc);
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, PWSTR /*pCmdLine*/,
+                     int nCmdShow) {
+    if (RegisterMainWindowClass(hInstance) == 0) {
+        return 0;
+    }
+
+    const HWND hwnd = CreateWindowExW(0, kWindowClassName, kWindowTitle, WS_OVERLAPPEDWINDOW,
+                                       CW_USEDEFAULT, CW_USEDEFAULT, 480, 320, nullptr, nullptr,
+                                       hInstance, nullptr);
+    if (hwnd == nullptr) {
+        return 0;
+    }
+
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+
+    // メッセージループ: OSからのメッセージ(イベント)を取り出し、WndProcへ振り分け続ける。
+    // WM_QUIT(PostQuitMessageで送られる)を受け取るとGetMessageが0を返しループを抜ける。
+    MSG msg{};
+    while (GetMessage(&msg, nullptr, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    return static_cast<int>(msg.wParam);
+}
