@@ -12,6 +12,55 @@
 ## 推奨ライブラリ/ツール
 - Qt6 (`QDialog`, `QMessageBox`)
 
+本課題では**Win32 API**を採用する。理由はルート [README.md](../README.md#guiライブラリの選定について) を参照。
+
 ## 成果物イメージ
 「削除しますか?」といった確認ダイアログや、簡単な入力フォームを持つ
 カスタムダイアログを表示し、結果をメインウィンドウに反映するアプリ。
+
+## ビルド方法・実行方法
+
+他の課題と同様にCMakeを使う（詳細はルート [README.md](../README.md#cmakeとvisual-studioの使い分け) を参照）。
+
+```sh
+# 14_DialogsAndMessageBox ディレクトリで実行
+cmake --preset x64-debug
+cmake --build --preset x64-debug
+./out/build/x64-debug/DialogsAndMessageBox
+```
+
+## 実装方針の補足: `.rc`リソースではなく`CreateWindowEx`ベースで実装した理由
+
+当初、入力ダイアログを`.rc`の`DIALOGEX`リソース+`DialogBoxParam`/`CreateDialogParam`で
+実装したが、本開発環境では`CreateDialogParam`/`DialogBoxParam`が
+`GetLastError()=1814`（`ERROR_RESOURCE_NAME_NOT_FOUND`）で失敗する問題が解決できなかった。
+`rc.exe`単体でのリソースコンパイルは成功し、`FindResourceW`で直接調べても実行ファイル内に
+該当リソースが見当たらないことを確認した。CMakeがNinja向けに自動生成する
+マニフェスト埋め込み処理(`cmake -E vs_link_exe --manifests`)を無効化(`/MANIFEST:NO`)しても
+改善しなかったため、本環境固有のビルド/リンク周りの制約と判断した。
+
+そのため、入力ダイアログは他の課題と同じ`CreateWindowExW`ベースのポップアップウィンドウ
+として実装し直した。これにより「モーダル/モードレスの違いは、結局のところ
+メッセージループの回し方の違いである」ことがコードにそのまま表れる形になっている
+（下表参照）。
+
+## 構成と学習ポイントとの対応
+
+| 要素 | 内容 | 学習ポイント |
+|---|---|---|
+| `MessageBoxW`(`MB_YESNO`/`MB_ICONINFORMATION`/`MB_ICONWARNING`/`MB_ICONERROR`) | 確認・情報・警告・エラーの各メッセージボックス | メッセージボックス |
+| `ShowModalInputDialog` | オーナーを`EnableWindow(FALSE)`で無効化し、ダイアログが閉じるまで**ネストしたメッセージループ**で待つ | モーダルダイアログ |
+| `ShowModelessInputDialog` | ウィンドウ作成後すぐ関数から戻り、メインのメッセージループがそのまま両方のウィンドウを処理する | モードレスダイアログ |
+| `WM_COPYDATA`によるダイアログ→メインウィンドウの結果通知 | モーダル/モードレスどちらでも同じ仕組みでデータを安全に受け渡す | ダイアログとメインウィンドウ間のデータの受け渡し |
+
+## 動作確認
+
+ビルド・実行し、外部の自動化スクリプトから以下を確認済み。
+
+- **確認ダイアログ**: 標準メッセージボックスの「はい」ボタンをクリックし、結果ラベルに
+  「確認: 「はい」が選択されました」と反映されること
+- **モーダル入力ダイアログ**: ダイアログ表示中はメインウィンドウが`EnableWindow(FALSE)`で
+  無効化されていること(`IsWindowEnabled`で確認)、入力後にOKすると結果が反映され、
+  メインウィンドウが再び有効化されること
+- **モードレス入力ダイアログ**: 表示直後からメインウィンドウの`IsWindowEnabled`が
+  `TRUE`のままであること、入力後にOKすると`WM_COPYDATA`経由で結果ラベルに反映されること
