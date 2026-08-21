@@ -37,3 +37,20 @@ cmake --build build
 
 `Hello, C++ Learning Lab!` と表示されれば成功。`build/` は `.gitignore` 対象なので
 コミットされない。
+
+## Visual Studio 2026 で開く
+
+このリポジトリではCMakeを唯一のビルド定義とし、`.sln`/`.vcxproj` は手動作成・コミットしない
+（詳細はルート [README.md](../README.md#cmakeとvisual-studioの使い分け) を参照）。
+VS2026でCMakeプロジェクトを直接開発・デバッグするには以下のいずれかを使う。
+
+- **フォルダを開く**: VS2026のスタート画面で「フォルダーを開く」からこの
+  `01_BuildEnvironmentSetup` フォルダを選択する。同梱の `CMakePresets.json` が
+  自動検出され、`x64-debug` / `x64-release` の構成が選択できる状態でビルド・
+  デバッグ実行が可能。
+- **ソリューションファイルを生成する**（従来型のプロジェクト管理をしたい場合）:
+  ```sh
+  cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+  ```
+  生成された `build/BuildEnvironmentSetup.sln` をVS2026で開く。生成物は
+  `.gitignore` 対象のためコミットされない。

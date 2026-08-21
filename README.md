@@ -100,3 +100,22 @@ C++の基礎からGUIプログラミング・DB連携・通信・USBデバイス
 - USBライブラリ: libusb, hidapi
 
 各課題フォルダの `README.md` で個別に必要なライブラリを案内します。
+
+## CMakeとVisual Studioの使い分け
+
+全課題共通で、**CMake（`CMakeLists.txt`）をビルド定義の唯一の正とする**。
+Visual Studioの `.sln`/`.vcxproj` は手動作成・コミットせず、以下のいずれかの方法で
+CMake経由でVisual Studioを利用する。
+
+- **フォルダを開く（推奨）**: 各課題フォルダをVisual Studioで「フォルダーを開く」。
+  同梱の `CMakePresets.json`（`x64-debug` / `x64-release`）が自動検出され、
+  ビルド・デバッグ実行ができる。
+- **ソリューションファイルを生成する**: 従来型のプロジェクト管理をしたい場合は
+  `cmake -S . -B build -G "Visual Studio 18 2026" -A x64` でその場で `.sln` を
+  生成できる。生成物は `build/`・`out/` ともに `.gitignore` 対象のためコミットされない。
+
+この方針により、コマンドライン・VS Code (CMake Tools)・Visual Studioのどれでも
+同じ `CMakeLists.txt` から一貫してビルドでき、プロジェクトファイルの二重メンテナンスを
+避けられる。新しい課題を追加する際は、`CMakeLists.txt` に加えて `CMakePresets.json`
+（[01_BuildEnvironmentSetup](01_BuildEnvironmentSetup/CMakePresets.json) をテンプレートとする）
+も一緒に配置すること。
