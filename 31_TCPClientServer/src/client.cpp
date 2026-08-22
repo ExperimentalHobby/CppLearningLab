@@ -7,6 +7,7 @@
 #endif
 
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -25,9 +26,14 @@ int main(int argc, char** argv) {
     const std::string message = argv[3];
 
     try {
-        const int parsedPort = std::stoi(argv[2]);
-        if (parsedPort < 0 || parsedPort > 65535) {
-            throw std::out_of_range("port must be between 0 and 65535");
+        int parsedPort = 0;
+        try {
+            parsedPort = std::stoi(argv[2]);
+        } catch (const std::exception&) {
+            throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
+        }
+        if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
+            throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
         }
         const uint16_t port = static_cast<uint16_t>(parsedPort);
 
