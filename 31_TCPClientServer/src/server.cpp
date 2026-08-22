@@ -24,7 +24,9 @@ int main(int argc, char** argv) {
         if (argc > 1) {
             try {
                 parsedPort = std::stoi(argv[1]);
-                if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
+                // windows.hがmax/minをマクロとして定義しているため、
+                // std::numeric_limitsのmax()がマクロ展開されないよう括弧で保護する。
+                if (parsedPort < 0 || parsedPort > (std::numeric_limits<uint16_t>::max)()) {
                     throw std::out_of_range("port out of range");
                 }
             } catch (const std::exception&) {
