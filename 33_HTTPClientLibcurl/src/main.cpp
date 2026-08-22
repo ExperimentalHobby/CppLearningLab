@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
 
         if (response.statusCode != 200) {
             std::cout << "本文:\n" << response.body << "\n";
-            return response.statusCode == 200 ? 0 : 1;
+            return 1;
         }
 
         const json::JsonValue json = json::ParseJson(response.body);
