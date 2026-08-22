@@ -29,10 +29,10 @@ int main(int argc, char** argv) {
         int parsedPort = 0;
         try {
             parsedPort = std::stoi(argv[2]);
+            if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
+                throw std::out_of_range("port out of range");
+            }
         } catch (const std::exception&) {
-            throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
-        }
-        if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
             throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
         }
         const uint16_t port = static_cast<uint16_t>(parsedPort);

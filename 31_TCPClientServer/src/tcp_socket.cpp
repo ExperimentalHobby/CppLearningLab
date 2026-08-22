@@ -103,18 +103,15 @@ bool TcpConnection::FillBuffer() {
     if (received == 0) {
         return false;  // 相手が接続をクローズした
     }
-    recvBuffer_.append(buffer, static_cast<size_t>(received));
-    if (recvBuffer_.size() > kMaxLineLength) {
+    if (recvBuffer_.size() + static_cast<size_t>(received) > kMaxLineLength) {
         throw TcpError("受信行が長すぎます(最大64KB)");
     }
+    recvBuffer_.append(buffer, static_cast<size_t>(received));
     return true;
 }
 
 bool TcpConnection::ReceiveLine(std::string& outLine) {
     for (;;) {
-        if (recvBuffer_.size() > kMaxLineLength) {
-            throw TcpError("1行の最大長(64KB)を超えました");
-        }
         const size_t newlinePos = recvBuffer_.find('\n');
         if (newlinePos != std::string::npos) {
             outLine = recvBuffer_.substr(0, newlinePos);
