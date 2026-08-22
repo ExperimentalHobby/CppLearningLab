@@ -38,10 +38,8 @@ const char* ParityName(uint8_t parity) {
 }  // namespace
 
 int main(int argc, char** argv) {
-#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
-#endif
     if (argc < 3) {
         PrintUsage(argv[0]);
         return 1;
