@@ -17,9 +17,21 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
 #endif
-    const uint16_t port = static_cast<uint16_t>(argc > 1 ? std::stoi(argv[1]) : 12346);
-
     try {
+        int portInt = 12346;
+        if (argc > 1) {
+            try {
+                portInt = std::stoi(argv[1]);
+            } catch (const std::invalid_argument&) {
+                throw net::UdpError("ポート番号の形式が不正です: " + std::string(argv[1]));
+            } catch (const std::out_of_range&) {
+                throw net::UdpError("ポート番号が範囲外です: " + std::string(argv[1]));
+            }
+        }
+        if (portInt < 0 || portInt > 65535) {
+            throw net::UdpError("ポート番号が範囲外です: " + std::to_string(portInt));
+        }
+        const uint16_t port = static_cast<uint16_t>(portInt);
         net::WinsockGuard guard;
         net::UdpSocket socket;
         socket.Bind(port);
