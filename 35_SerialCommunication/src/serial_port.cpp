@@ -77,7 +77,15 @@ void SerialPort::Open(const std::string& portName, const SerialSettings& setting
     dcb.BaudRate = settings.baudRate;
     dcb.ByteSize = settings.dataBits;
     dcb.Parity = ToWinParity(settings.parity);
-    dcb.StopBits = settings.stopBits == 2 ? TWOSTOPBITS : ONESTOPBIT;
+    if (settings.stopBits == 1) {
+        dcb.StopBits = ONESTOPBIT;
+    } else if (settings.stopBits == 2) {
+        dcb.StopBits = TWOSTOPBITS;
+    } else {
+        CloseHandle(handle);
+        throw SerialError("無効なストップビット数です(1または2を指定してください): " +
+                          std::to_string(settings.stopBits));
+    }
     dcb.fBinary = TRUE;
     dcb.fParity = settings.parity != Parity::kNone;
 

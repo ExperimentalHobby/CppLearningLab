@@ -5,9 +5,7 @@
 // 「probe」でオープンと設定適用の確認、「send」/「receive」で送受信APIの
 // 呼び出しが正しく成功する(ハングしない)ことを確認できるようにしている
 // (詳細はREADMEの「動作確認・環境上の制約」を参照)。
-#ifdef _WIN32
 #include <windows.h>
-#endif
 
 #include <iostream>
 #include <string>
@@ -66,7 +64,9 @@ int main(int argc, char** argv) {
                       << "  ボーレート: " << applied.baudRate << "\n"
                       << "  データビット: " << static_cast<int>(applied.dataBits) << "\n"
                       << "  パリティ: " << ParityName(applied.parity) << "\n"
-                      << "  ストップビット: " << (applied.stopBits == ONESTOPBIT ? "1" : "2") << "\n";
+                      << "  ストップビット: "
+                      << (applied.stopBits == ONESTOPBIT ? "1" : applied.stopBits == ONE5STOPBITS ? "1.5" : "2")
+                      << "\n";
         } else if (mode == "send") {
             if (argc < 4) {
                 PrintUsage(argv[0]);
@@ -101,6 +101,9 @@ int main(int argc, char** argv) {
             return 1;
         }
     } catch (const serial::SerialError& e) {
+        std::cerr << "エラー: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }
