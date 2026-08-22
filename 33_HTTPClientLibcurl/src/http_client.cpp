@@ -14,9 +14,16 @@ std::wstring Utf8ToWide(const std::string& utf8) {
     if (utf8.empty()) {
         return {};
     }
-    const int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), nullptr, 0);
+    const int len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.c_str(),
+                                        static_cast<int>(utf8.size()), nullptr, 0);
+    if (len <= 0) {
+        throw HttpError("MultiByteToWideCharに失敗しました: エラーコード=" + std::to_string(GetLastError()));
+    }
     std::wstring wide(static_cast<size_t>(len), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), wide.data(), len);
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.c_str(), static_cast<int>(utf8.size()), wide.data(),
+                            len) <= 0) {
+        throw HttpError("MultiByteToWideCharに失敗しました: エラーコード=" + std::to_string(GetLastError()));
+    }
     return wide;
 }
 
