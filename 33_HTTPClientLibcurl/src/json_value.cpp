@@ -106,7 +106,12 @@ class Parser {
         return text_[pos_];
     }
 
-    char Next() { return text_[pos_++]; }
+    char Next() {
+        if (pos_ >= text_.size()) {
+            throw JsonParseError("予期しない入力の終端です");
+        }
+        return text_[pos_++];
+    }
 
     void Expect(char expected) {
         if (pos_ >= text_.size() || text_[pos_] != expected) {
