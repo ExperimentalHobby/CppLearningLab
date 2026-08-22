@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <string>
 
 #include "tcp_socket.h"
@@ -23,12 +24,12 @@ int main(int argc, char** argv) {
         if (argc > 1) {
             try {
                 parsedPort = std::stoi(argv[1]);
+                if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
+                    throw std::out_of_range("port out of range");
+                }
             } catch (const std::exception&) {
                 throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
             }
-        }
-        if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
-            throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
         }
         const uint16_t port = static_cast<uint16_t>(parsedPort);
 
