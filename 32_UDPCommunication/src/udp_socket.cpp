@@ -36,8 +36,12 @@ UdpSocket::UdpSocket() {
     // 素直にSetReceiveTimeout()で設定したタイムアウトが働くようにする。
     BOOL enableConnReset = FALSE;
     DWORD bytesReturned = 0;
-    WSAIoctl(sock, SIO_UDP_CONNRESET, &enableConnReset, sizeof(enableConnReset), nullptr, 0, &bytesReturned,
-              nullptr, nullptr);
+    if (WSAIoctl(sock, SIO_UDP_CONNRESET, &enableConnReset, sizeof(enableConnReset), nullptr, 0, &bytesReturned,
+                 nullptr, nullptr) == SOCKET_ERROR) {
+        const int err = WSAGetLastError();
+        closesocket(sock);
+        throw UdpError("SIO_UDP_CONNRESETの無効化に失敗しました: WSAエラーコード=" + std::to_string(err));
+    }
 
     handle_ = static_cast<SocketHandle>(sock);
 }
