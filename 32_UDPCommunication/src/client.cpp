@@ -22,11 +22,26 @@ int main(int argc, char** argv) {
         std::cerr << "使い方: " << argv[0] << " <host> <port> <送信回数> [メッセージ接頭辞]\n";
         return 1;
     }
-    const net::Endpoint server{argv[1], static_cast<uint16_t>(std::stoi(argv[2]))};
-    const int count = std::stoi(argv[3]);
-    const std::string prefix = argc > 4 ? argv[4] : "msg";
-
     try {
+        int portInt = 0;
+        int count = 0;
+        try {
+            portInt = std::stoi(argv[2]);
+            count = std::stoi(argv[3]);
+        } catch (const std::invalid_argument&) {
+            throw net::UdpError("数値引数の形式が不正です");
+        } catch (const std::out_of_range&) {
+            throw net::UdpError("数値引数が範囲外です");
+        }
+        if (portInt < 0 || portInt > 65535) {
+            throw net::UdpError("ポート番号が範囲外です: " + std::to_string(portInt));
+        }
+        if (count <= 0) {
+            throw net::UdpError("送信回数は1以上で指定してください: " + std::to_string(count));
+        }
+        const net::Endpoint server{argv[1], static_cast<uint16_t>(portInt)};
+        const std::string prefix = argc > 4 ? argv[4] : "msg";
+
         net::WinsockGuard guard;
         net::UdpSocket socket;
         socket.SetReceiveTimeout(2000);
