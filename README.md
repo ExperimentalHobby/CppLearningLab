@@ -192,3 +192,30 @@ Win32 API使用時の共通の注意点:
 ポップアップウィンドウとして実装している。今後の課題で`.rc`リソース
 （アイコン、アクセラレータ、`DIALOGEX`等）を使う場合は、まず小さく検証してから
 本格的に組み込むこと。
+
+## DB連携(21-27番台)で採用したライブラリ・環境上の制約
+
+### SQLiteはamalgamationをvendoring
+
+開発環境にvcpkg/Conan等のパッケージマネージャが無いため、21・23・24・25・26・27番の
+各課題では[third_party/sqlite3](third_party/sqlite3/NOTICE.md)に同梱した
+SQLite公式のamalgamation(`sqlite3.c`/`sqlite3.h`の2ファイル、パブリックドメイン)を
+各課題の`CMakeLists.txt`から相対パスで参照し、静的ライブラリとしてビルドする。
+複数課題から同じソースを共有することで、amalgamation本体(約9MB)の重複コミットを
+避けている。
+
+### MySQL/PostgreSQL接続(22番)はODBC + Windows標準ライブラリを使用
+
+22番の課題では、`libmysqlclient`/`libpqxx`等の専用クライアントライブラリが
+本開発環境に無く追加インストールもできないため、**ODBC**（Windows SDKに標準で
+含まれる`odbc32.lib`/`odbccp32.lib`、追加インストール不要）を接続層として採用した。
+MySQL/PostgreSQLはいずれも公式のODBCドライバを提供しており、同じODBC API
+(`SQLConnect`/`SQLExecDirect`/`SQLFetch`等)でどちらにも接続できる。
+
+ただし本開発環境にはMySQL/PostgreSQLサーバー本体もODBCドライバも導入されておらず、
+実際のサーバーに接続してのCRUD動作確認はできていない（詳細は
+[22_MySQLConnection/README.md](22_MySQLConnection/README.md)の「動作確認」を参照）。
+接続文字列の組み立てロジックと、接続失敗時のエラーハンドリング（`SQLGetDiagRec`
+によるエラーメッセージ整形）は実際に検証済み。実サーバーで確認する場合は、
+DockerでMySQL/PostgreSQLコンテナを起動し、対応するODBCドライバをインストールした上で
+接続文字列を渡すこと。
