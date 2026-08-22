@@ -9,6 +9,8 @@ namespace net {
 
 namespace {
 
+constexpr size_t kMaxLineLength = 64 * 1024;
+
 std::string LastErrorMessage() {
     return "WSAエラーコード=" + std::to_string(WSAGetLastError());
 }
@@ -102,6 +104,9 @@ bool TcpConnection::FillBuffer() {
         return false;  // 相手が接続をクローズした
     }
     recvBuffer_.append(buffer, static_cast<size_t>(received));
+    if (recvBuffer_.size() > kMaxLineLength) {
+        throw TcpError("受信行が長すぎます(最大64KB)");
+    }
     return true;
 }
 
