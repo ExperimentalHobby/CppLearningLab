@@ -19,9 +19,13 @@ namespace {
 std::atomic<bool> g_running{true};
 
 void ReceiveLoop(net::TcpConnection* connection) {
-    std::string line;
-    while (g_running && connection->ReceiveLine(line)) {
-        std::cout << line << "\n";
+    try {
+        std::string line;
+        while (g_running && connection->ReceiveLine(line)) {
+            std::cout << line << "\n";
+        }
+    } catch (const std::exception&) {
+        // 切断やShutdownによる受信エラーは正常な停止として扱う。
     }
     g_running = false;
 }
@@ -38,10 +42,16 @@ int main(int argc, char** argv) {
         return 1;
     }
     const std::string host = argv[1];
-    const uint16_t port = static_cast<uint16_t>(std::stoi(argv[2]));
     const std::string nickname = argv[3];
 
     try {
+        const int portInt = std::stoi(argv[2]);
+        if (portInt <= 0 || portInt > 65535) {
+            std::cerr << "エラー: ポート番号が範囲外です(1-65535): " << argv[2] << "\n";
+            return 1;
+        }
+        const uint16_t port = static_cast<uint16_t>(portInt);
+
         net::WinsockGuard guard;
         net::TcpConnection connection = net::TcpConnection::Connect(host, port);
         connection.SendLine(nickname);
@@ -58,9 +68,10 @@ int main(int argc, char** argv) {
         }
 
         g_running = false;
-        connection.Close();  // ReceiveLineのブロックを解除するため能動的にクローズ
+        connection.Shutdown();  // ReceiveLineのブロックを解除するため能動的にshutdown
         receiver.join();
-    } catch (const net::TcpError& e) {
+        connection.Close();
+    } catch (const std::exception& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }

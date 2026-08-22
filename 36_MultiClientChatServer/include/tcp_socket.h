@@ -46,6 +46,9 @@ class TcpConnection {
     // 相手が接続を閉じ、未完成の行も無い場合はfalseを返す。
     bool ReceiveLine(std::string& outLine);
 
+    // ブロッキングrecvを解除するためにshutdown()を呼ぶ。handle_は閉じない。
+    // 受信スレッドを安全に停止させた後、単一スレッドからClose()を呼ぶこと。
+    void Shutdown();
     void Close();
     bool IsValid() const { return handle_ != kInvalidHandle; }
 

@@ -12,12 +12,18 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
 #endif
-    const uint16_t port = static_cast<uint16_t>(argc > 1 ? std::stoi(argv[1]) : 12347);
 
     try {
+        const int portInt = argc > 1 ? std::stoi(argv[1]) : 12347;
+        if (portInt <= 0 || portInt > 65535) {
+            std::cerr << "エラー: ポート番号が範囲外です(1-65535): " << argv[1] << "\n";
+            return 1;
+        }
+        const uint16_t port = static_cast<uint16_t>(portInt);
+
         chat::ChatServer server;
         server.Run(port);
-    } catch (const net::TcpError& e) {
+    } catch (const std::exception& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }

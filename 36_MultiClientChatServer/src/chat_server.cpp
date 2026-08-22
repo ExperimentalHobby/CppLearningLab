@@ -32,16 +32,22 @@ void ChatServer::RemoveClient(const Client* target) {
 
 void ChatServer::HandleClient(std::shared_ptr<Client> client) {
     // 接続直後の最初の1行をニックネームとして扱う。
-    if (!client->connection.ReceiveLine(client->nickname) || client->nickname.empty()) {
-        return;
-    }
-    std::cout << "[" << client->nickname << "] が参加しました。\n";
-    Broadcast(client->nickname + " が参加しました。", client.get());
+    // ニックネーム受信失敗やその後の例外時も必ずRemoveClientする。
+    try {
+        if (!client->connection.ReceiveLine(client->nickname) || client->nickname.empty()) {
+            RemoveClient(client.get());
+            return;
+        }
+        std::cout << "[" << client->nickname << "] が参加しました。\n";
+        Broadcast(client->nickname + " が参加しました。", client.get());
 
-    std::string line;
-    while (client->connection.ReceiveLine(line)) {
-        std::cout << "[" << client->nickname << "] " << line << "\n";
-        Broadcast(client->nickname + ": " + line, client.get());
+        std::string line;
+        while (client->connection.ReceiveLine(line)) {
+            std::cout << "[" << client->nickname << "] " << line << "\n";
+            Broadcast(client->nickname + ": " + line, client.get());
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[" << client->nickname << "] 例外: " << e.what() << "\n";
     }
 
     std::cout << "[" << client->nickname << "] が退出しました。\n";

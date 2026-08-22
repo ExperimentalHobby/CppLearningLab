@@ -122,6 +122,12 @@ bool TcpConnection::ReceiveLine(std::string& outLine) {
     }
 }
 
+void TcpConnection::Shutdown() {
+    if (handle_ != kInvalidHandle) {
+        shutdown(static_cast<SOCKET>(handle_), SD_BOTH);
+    }
+}
+
 void TcpConnection::Close() {
     if (handle_ != kInvalidHandle) {
         closesocket(static_cast<SOCKET>(handle_));
@@ -142,7 +148,11 @@ void TcpListener::Listen(uint16_t port, int backlog) {
     }
 
     const BOOL reuseAddr = TRUE;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuseAddr), sizeof(reuseAddr));
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuseAddr), sizeof(reuseAddr)) == SOCKET_ERROR) {
+        const std::string message = "SO_REUSEADDRの設定に失敗しました: " + LastErrorMessage();
+        closesocket(sock);
+        throw TcpError(message);
+    }
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
