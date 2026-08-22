@@ -37,21 +37,21 @@ class TcpReceiveError : public TcpError {
 };
 
 // 受信行が最大行長を超えた。
-// received: 受信済みバイト数、limit: 設定された上限バイト数。
+// totalReceived: 累積受信バイト数、limit: 設定された上限バイト数。
 class TcpLineTooLongError : public TcpError {
    public:
-    TcpLineTooLongError(size_t received, size_t limit)
-        : TcpError("受信行が最大行長を超えました(受信済み=" + std::to_string(received) +
+    TcpLineTooLongError(size_t totalReceived, size_t limit)
+        : TcpError("受信行が最大行長を超えました(累積受信=" + std::to_string(totalReceived) +
                    " bytes, 上限=" + std::to_string(limit) + " bytes, 超過=" +
-                   std::to_string(received - limit) + " bytes)"),
-          received_(received),
+                   std::to_string(totalReceived - limit) + " bytes)"),
+          totalReceived_(totalReceived),
           limit_(limit) {}
 
-    size_t received() const { return received_; }
+    size_t totalReceived() const { return totalReceived_; }
     size_t limit() const { return limit_; }
 
    private:
-    size_t received_;
+    size_t totalReceived_;
     size_t limit_;
 };
 

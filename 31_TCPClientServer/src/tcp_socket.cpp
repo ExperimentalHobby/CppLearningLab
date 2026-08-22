@@ -185,7 +185,7 @@ TcpConnection TcpListener::Accept(size_t maxLineLength) {
     const SOCKET listenSock = static_cast<SOCKET>(handle_);
     const SOCKET clientSock = accept(listenSock, nullptr, nullptr);
     if (clientSock == INVALID_SOCKET) {
-        throw TcpError("acceptに失敗しました: " + LastErrorMessage());
+        throw TcpConnectError("acceptに失敗しました: " + LastErrorMessage());
     }
     return TcpConnection(static_cast<SocketHandle>(clientSock), maxLineLength);
 }
