@@ -46,8 +46,10 @@ TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port) {
 
     addrinfo* resolved = nullptr;
     const std::string portStr = std::to_string(port);
-    if (getaddrinfo(host.c_str(), portStr.c_str(), &hints, &resolved) != 0) {
-        throw TcpError("ホスト名の解決に失敗しました: " + host);
+    const int gaiErr = getaddrinfo(host.c_str(), portStr.c_str(), &hints, &resolved);
+    if (gaiErr != 0) {
+        throw TcpError("ホスト名の解決に失敗しました(" + host + ":" + portStr + "): " +
+                       std::string(gai_strerrorA(gaiErr)));
     }
 
     SOCKET sock = INVALID_SOCKET;
