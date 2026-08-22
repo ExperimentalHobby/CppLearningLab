@@ -7,6 +7,7 @@
 #endif
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include "tcp_socket.h"
@@ -21,10 +22,15 @@ int main(int argc, char** argv) {
         return 1;
     }
     const std::string host = argv[1];
-    const uint16_t port = static_cast<uint16_t>(std::stoi(argv[2]));
     const std::string message = argv[3];
 
     try {
+        const int parsedPort = std::stoi(argv[2]);
+        if (parsedPort < 0 || parsedPort > 65535) {
+            throw std::out_of_range("port must be between 0 and 65535");
+        }
+        const uint16_t port = static_cast<uint16_t>(parsedPort);
+
         net::WinsockGuard guard;
         net::TcpConnection connection = net::TcpConnection::Connect(host, port);
         connection.SendLine(message);
@@ -38,6 +44,9 @@ int main(int argc, char** argv) {
         }
     } catch (const net::TcpError& e) {
         std::cerr << "エラー: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
+        std::cerr << "引数エラー: " << e.what() << "\n";
         return 1;
     }
     return 0;
