@@ -35,7 +35,22 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
 #endif
-    const uint16_t port = static_cast<uint16_t>(argc > 1 ? std::stoi(argv[1]) : 8080);
+    uint16_t port = 8080;
+    if (argc > 1) {
+        try {
+            const int parsed = std::stoi(argv[1]);
+            if (parsed < 1 || parsed > 65535) {
+                std::cerr << "エラー: ポート番号は1〜65535の範囲で指定してください。\n";
+                std::cerr << "使い方: " << argv[0] << " [ポート番号]\n";
+                return 1;
+            }
+            port = static_cast<uint16_t>(parsed);
+        } catch (const std::exception&) {
+            std::cerr << "エラー: ポート番号が不正です: " << argv[1] << "\n";
+            std::cerr << "使い方: " << argv[0] << " [ポート番号]\n";
+            return 1;
+        }
+    }
 
     httpsrv::HttpServer server;
 

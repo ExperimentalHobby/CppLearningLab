@@ -46,8 +46,10 @@ TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port) {
 
     addrinfo* resolved = nullptr;
     const std::string portStr = std::to_string(port);
-    if (getaddrinfo(host.c_str(), portStr.c_str(), &hints, &resolved) != 0) {
-        throw TcpError("ホスト名の解決に失敗しました: " + host);
+    const int gaierr = getaddrinfo(host.c_str(), portStr.c_str(), &hints, &resolved);
+    if (gaierr != 0) {
+        throw TcpError("ホスト名の解決に失敗しました: " + host + ":" + portStr +
+                       " (getaddrinfoエラーコード=" + std::to_string(gaierr) + ")");
     }
 
     SOCKET sock = INVALID_SOCKET;
@@ -142,7 +144,11 @@ void TcpListener::Listen(uint16_t port, int backlog) {
     }
 
     const BOOL reuseAddr = TRUE;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuseAddr), sizeof(reuseAddr));
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuseAddr), sizeof(reuseAddr)) == SOCKET_ERROR) {
+        const std::string message = "SO_REUSEADDRの設定に失敗しました: " + LastErrorMessage();
+        closesocket(sock);
+        throw TcpError(message);
+    }
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;

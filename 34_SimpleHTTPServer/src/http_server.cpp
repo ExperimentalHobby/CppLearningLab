@@ -25,19 +25,25 @@ RouteResponse HttpServer::Dispatch(const HttpRequest& request) const {
 }
 
 void HttpServer::HandleConnection(net::TcpConnection connection) {
-    HttpRequest request;
-    if (!ReadHttpRequest(connection, request)) {
-        return;  // リクエストラインが読めないまま切断された
+    try {
+        HttpRequest request;
+        if (!ReadHttpRequest(connection, request)) {
+            return;  // リクエストラインが読めないまま切断された
+        }
+
+        std::cout << "リクエスト: " << request.method << " " << request.path << "\n";
+
+        const RouteResponse response = Dispatch(request);
+        const std::string raw = BuildHttpResponse(response.statusCode, response.statusText, response.contentType,
+                                                   response.body);
+        connection.Send(raw);
+        // connectionのデストラクタでcloseされる(Connection: closeレスポンスヘッダーと
+        // 整合させ、1リクエスト1接続の単純なモデルにしている)。
+    } catch (const std::exception& e) {
+        std::cerr << "接続処理中にエラーが発生しました: " << e.what() << "\n";
+    } catch (...) {
+        std::cerr << "接続処理中に不明なエラーが発生しました。\n";
     }
-
-    std::cout << "リクエスト: " << request.method << " " << request.path << "\n";
-
-    const RouteResponse response = Dispatch(request);
-    const std::string raw = BuildHttpResponse(response.statusCode, response.statusText, response.contentType,
-                                               response.body);
-    connection.Send(raw);
-    // connectionのデストラクタでcloseされる(Connection: closeレスポンスヘッダーと
-    // 整合させ、1リクエスト1接続の単純なモデルにしている)。
 }
 
 void HttpServer::Run(uint16_t port) {
