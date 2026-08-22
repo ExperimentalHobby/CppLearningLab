@@ -154,3 +154,27 @@ CMake経由でVisual Studioを利用する。
       // ...
   }
   ```
+
+## GUIライブラリの選定について
+
+11〜18番台(GUIプログラミング)の各課題READMEは、当初の想定ライブラリとしてQt6/wxWidgetsを
+挙げているが、本リポジトリでは**Win32 API**を採用する。
+
+- 開発環境にQt6/wxWidgets/vcpkgが導入されておらず、追加インストールができない
+- Win32 APIはVisual Studio同梱のツール（MSVC、Windows SDK）のみでビルドでき、
+  01〜08と同じCMake構成をそのまま継続できる
+- ネイティブWindows GUIプログラミングの基礎（ウィンドウ・メッセージループ・
+  コモンコントロール・GDI・スレッド間通信）を学ぶこと自体に学習価値がある
+
+Win32 API使用時の共通の注意点:
+
+- ウィンドウ/コントロールを作る実行ファイルは`add_executable(... WIN32 ...)`で
+  GUIサブシステムとしてビルドし、エントリポイントは`WinMain`/`wWinMain`にする
+- `UNICODE`/`_UNICODE`を定義し、`W`サフィックスの関数(`CreateWindowExW`等)と
+  `wchar_t`文字列(`L"..."`)を使う
+- 独自クラス名が`windows.h`のグローバル関数と衝突することがある
+  （[06_ClassesAndOOP](06_ClassesAndOOP/README.md) の`Rectangle`/GDI関数の衝突を参照）。
+  `NOGDI`等のマクロで該当機能を除外するか、名前を変えて回避する
+- コモンコントロール(ツールバー/ステータスバー/プログレスバー等)を使う課題は
+  `comctl32.lib`を、共通ダイアログ(ファイル選択等)を使う課題は`comdlg32.lib`を
+  `target_link_libraries`でリンクする
