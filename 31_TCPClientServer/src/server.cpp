@@ -19,7 +19,14 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
 #endif
     try {
-        const int parsedPort = argc > 1 ? std::stoi(argv[1]) : 12345;
+        int parsedPort = 12345;
+        if (argc > 1) {
+            try {
+                parsedPort = std::stoi(argv[1]);
+            } catch (const std::exception&) {
+                throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
+            }
+        }
         if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
             throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
         }
@@ -44,8 +51,8 @@ int main(int argc, char** argv) {
     } catch (const net::TcpError& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;
-    } catch (const std::exception&) {
-        std::cerr << "エラー: ポート番号は0から65535の整数で指定してください。\n";
+    } catch (const std::exception& e) {
+        std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }
 }
