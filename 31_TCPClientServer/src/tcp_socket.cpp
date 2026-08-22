@@ -9,8 +9,6 @@ namespace net {
 
 namespace {
 
-constexpr size_t kMaxLineLength = 64 * 1024;
-
 std::string LastErrorMessage() {
     return "WSAエラーコード=" + std::to_string(WSAGetLastError());
 }
@@ -19,14 +17,16 @@ std::string LastErrorMessage() {
 
 // --- TcpConnection ---
 
-TcpConnection::TcpConnection() = default;
+TcpConnection::TcpConnection(size_t maxLineLength) : maxLineLength_(maxLineLength) {}
 
-TcpConnection::TcpConnection(SocketHandle handle) : handle_(handle) {}
+TcpConnection::TcpConnection(SocketHandle handle, size_t maxLineLength)
+    : handle_(handle), maxLineLength_(maxLineLength) {}
 
 TcpConnection::~TcpConnection() { Close(); }
 
 TcpConnection::TcpConnection(TcpConnection&& other) noexcept
-    : handle_(other.handle_), recvBuffer_(std::move(other.recvBuffer_)) {
+    : handle_(other.handle_), recvBuffer_(std::move(other.recvBuffer_)),
+      maxLineLength_(other.maxLineLength_) {
     other.handle_ = kInvalidHandle;
 }
 
@@ -35,12 +35,14 @@ TcpConnection& TcpConnection::operator=(TcpConnection&& other) noexcept {
         Close();
         handle_ = other.handle_;
         recvBuffer_ = std::move(other.recvBuffer_);
+        maxLineLength_ = other.maxLineLength_;
         other.handle_ = kInvalidHandle;
     }
     return *this;
 }
 
-TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port) {
+TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port,
+                                      size_t maxLineLength) {
     addrinfo hints{};
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -50,8 +52,8 @@ TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port) {
     const std::string portStr = std::to_string(port);
     const int gaiErr = getaddrinfo(host.c_str(), portStr.c_str(), &hints, &resolved);
     if (gaiErr != 0) {
-        throw TcpError("ホスト名の解決に失敗しました(" + host + ":" + portStr + "): " +
-                       std::string(gai_strerrorA(gaiErr)));
+        throw TcpConnectError("ホスト名の解決に失敗しました(" + host + ":" + portStr + "): " +
+                              std::string(gai_strerrorA(gaiErr)));
     }
 
     SOCKET sock = INVALID_SOCKET;
@@ -69,9 +71,9 @@ TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port) {
     freeaddrinfo(resolved);
 
     if (sock == INVALID_SOCKET) {
-        throw TcpError("接続に失敗しました(" + host + ":" + portStr + "): " + LastErrorMessage());
+        throw TcpConnectError("接続に失敗しました(" + host + ":" + portStr + "): " + LastErrorMessage());
     }
-    return TcpConnection(static_cast<SocketHandle>(sock));
+    return TcpConnection(static_cast<SocketHandle>(sock), maxLineLength);
 }
 
 void TcpConnection::Send(const std::string& data) {
@@ -85,7 +87,7 @@ void TcpConnection::Send(const std::string& data) {
                                : static_cast<int>(remaining);
         const int sent = send(sock, data.data() + sentTotal, toSend, 0);
         if (sent == SOCKET_ERROR) {
-            throw TcpError("送信に失敗しました: " + LastErrorMessage());
+            throw TcpSendError("送信に失敗しました: " + LastErrorMessage());
         }
         sentTotal += static_cast<size_t>(sent);
     }
@@ -98,13 +100,14 @@ bool TcpConnection::FillBuffer() {
     const SOCKET sock = static_cast<SOCKET>(handle_);
     const int received = recv(sock, buffer, static_cast<int>(sizeof(buffer)), 0);
     if (received == SOCKET_ERROR) {
-        throw TcpError("受信に失敗しました: " + LastErrorMessage());
+        throw TcpReceiveError("受信に失敗しました: " + LastErrorMessage());
     }
     if (received == 0) {
         return false;  // 相手が接続をクローズした
     }
-    if (recvBuffer_.size() + static_cast<size_t>(received) > kMaxLineLength) {
-        throw TcpError("受信行が長すぎます(最大64KB)");
+    const size_t newTotal = recvBuffer_.size() + static_cast<size_t>(received);
+    if (newTotal > maxLineLength_) {
+        throw TcpLineTooLongError(newTotal, maxLineLength_);
     }
     recvBuffer_.append(buffer, static_cast<size_t>(received));
     return true;
@@ -178,13 +181,13 @@ void TcpListener::Listen(uint16_t port, int backlog) {
     handle_ = static_cast<SocketHandle>(sock);
 }
 
-TcpConnection TcpListener::Accept() {
+TcpConnection TcpListener::Accept(size_t maxLineLength) {
     const SOCKET listenSock = static_cast<SOCKET>(handle_);
     const SOCKET clientSock = accept(listenSock, nullptr, nullptr);
     if (clientSock == INVALID_SOCKET) {
         throw TcpError("acceptに失敗しました: " + LastErrorMessage());
     }
-    return TcpConnection(static_cast<SocketHandle>(clientSock));
+    return TcpConnection(static_cast<SocketHandle>(clientSock), maxLineLength);
 }
 
 void TcpListener::Close() {
