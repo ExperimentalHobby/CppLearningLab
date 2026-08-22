@@ -8,6 +8,7 @@
 #endif
 
 #include <iostream>
+#include <limits>
 #include <string>
 
 #include "tcp_socket.h"
@@ -17,9 +18,13 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
 #endif
-    const uint16_t port = static_cast<uint16_t>(argc > 1 ? std::stoi(argv[1]) : 12345);
-
     try {
+        const int parsedPort = argc > 1 ? std::stoi(argv[1]) : 12345;
+        if (parsedPort < 0 || parsedPort > std::numeric_limits<uint16_t>::max()) {
+            throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
+        }
+        const uint16_t port = static_cast<uint16_t>(parsedPort);
+
         net::WinsockGuard guard;
         net::TcpListener listener;
         listener.Listen(port);
@@ -38,6 +43,9 @@ int main(int argc, char** argv) {
         }
     } catch (const net::TcpError& e) {
         std::cerr << "エラー: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception&) {
+        std::cerr << "エラー: ポート番号は0から65535の整数で指定してください。\n";
         return 1;
     }
 }
