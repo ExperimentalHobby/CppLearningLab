@@ -111,7 +111,6 @@ bool TcpConnection::FillBuffer() {
 }
 
 bool TcpConnection::ReceiveLine(std::string& outLine) {
-    constexpr size_t kMaxLineLength = 64 * 1024;
     for (;;) {
         if (recvBuffer_.size() > kMaxLineLength) {
             throw TcpError("1行の最大長(64KB)を超えました");
