@@ -193,6 +193,46 @@ Win32 API使用時の共通の注意点:
 （アイコン、アクセラレータ、`DIALOGEX`等）を使う場合は、まず小さく検証してから
 本格的に組み込むこと。
 
+## GUIの外部自動化検証における`FindWindow`の既知の問題
+
+[26_CustomerManagementApp](26_CustomerManagementApp)の動作確認で判明した問題として、
+本開発環境では外部の自動化スクリプト(PowerShell)から`FindWindow`(クラス名・
+ウィンドウタイトルどちらで検索しても)を呼ぶと、対象のウィンドウが実際に
+存在し前面に表示されていても戻り値が常に`0`(見つからない)になる。
+
+回避策として、`EnumWindows`で全トップレベルウィンドウを列挙し、
+`GetWindowThreadProcessId`で対象プロセスIDと一致するものを探す方式に
+切り替えたところ、正しくウィンドウハンドルを取得できた。以降のGUI課題で
+外部スクリプトからウィンドウを特定する場合は、`FindWindow`ではなく
+この`EnumWindows`ベースの方式を使うこと。
+
+## DB連携(21-27番台)で採用したライブラリ・環境上の制約
+
+### SQLiteはamalgamationをvendoring
+
+開発環境にvcpkg/Conan等のパッケージマネージャが無いため、21・23・24・25・26・27番の
+各課題では[third_party/sqlite3](third_party/sqlite3/NOTICE.md)に同梱した
+SQLite公式のamalgamation(`sqlite3.c`/`sqlite3.h`の2ファイル、パブリックドメイン)を
+各課題の`CMakeLists.txt`から相対パスで参照し、静的ライブラリとしてビルドする。
+複数課題から同じソースを共有することで、amalgamation本体(約9MB)の重複コミットを
+避けている。
+
+### MySQL/PostgreSQL接続(22番)はODBC + Windows標準ライブラリを使用
+
+22番の課題では、`libmysqlclient`/`libpqxx`等の専用クライアントライブラリが
+本開発環境に無く追加インストールもできないため、**ODBC**（Windows SDKに標準で
+含まれる`odbc32.lib`/`odbccp32.lib`、追加インストール不要）を接続層として採用した。
+MySQL/PostgreSQLはいずれも公式のODBCドライバを提供しており、同じODBC API
+(`SQLConnect`/`SQLExecDirect`/`SQLFetch`等)でどちらにも接続できる。
+
+ただし本開発環境にはMySQL/PostgreSQLサーバー本体もODBCドライバも導入されておらず、
+実際のサーバーに接続してのCRUD動作確認はできていない（詳細は
+[22_MySQLConnection/README.md](22_MySQLConnection/README.md)の「動作確認」を参照）。
+接続文字列の組み立てロジックと、接続失敗時のエラーハンドリング（`SQLGetDiagRec`
+によるエラーメッセージ整形）は実際に検証済み。実サーバーで確認する場合は、
+DockerでMySQL/PostgreSQLコンテナを起動し、対応するODBCドライバをインストールした上で
+接続文字列を渡すこと。
+
 ## 通信(31-38番台)で採用したライブラリについて
 
 31〜38番台(通信)の各課題READMEは、当初の想定ライブラリとしてBoost.Asio/libcurl/
