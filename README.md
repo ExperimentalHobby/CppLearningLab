@@ -178,3 +178,17 @@ Win32 API使用時の共通の注意点:
 - コモンコントロール(ツールバー/ステータスバー/プログレスバー等)を使う課題は
   `comctl32.lib`を、共通ダイアログ(ファイル選択等)を使う課題は`comdlg32.lib`を
   `target_link_libraries`でリンクする
+
+## `.rc`リソース(DIALOGEX等)を使う際の既知の問題
+
+[14_DialogsAndMessageBox](14_DialogsAndMessageBox) で、`.rc`の`DIALOGEX`リソースを
+`DialogBoxParam`/`CreateDialogParam`で読み込むと、本開発環境では
+`GetLastError()=1814`（`ERROR_RESOURCE_NAME_NOT_FOUND`）で失敗する問題が発生し、
+原因を特定できなかった（`rc.exe`単体でのコンパイルは成功し、`FindResourceW`で
+直接調べても実行ファイル内に該当リソースが見当たらない。CMakeの自動マニフェスト
+埋め込み(`/MANIFEST:NO`)を無効化しても改善しなかった）。
+
+回避策として、ダイアログは`.rc`を使わず他の課題と同じ`CreateWindowExW`ベースの
+ポップアップウィンドウとして実装している。今後の課題で`.rc`リソース
+（アイコン、アクセラレータ、`DIALOGEX`等）を使う場合は、まず小さく検証してから
+本格的に組み込むこと。
