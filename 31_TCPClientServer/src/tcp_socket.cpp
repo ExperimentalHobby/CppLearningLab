@@ -144,8 +144,12 @@ void TcpListener::Listen(uint16_t port, int backlog) {
     }
 
     const BOOL reuseAddr = TRUE;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuseAddr), sizeof(reuseAddr));
-
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuseAddr),
+                   sizeof(reuseAddr)) == SOCKET_ERROR) {
+        const std::string message = "setsockopt(SO_REUSEADDR)に失敗しました: " + LastErrorMessage();
+        closesocket(sock);
+        throw TcpError(message);
+    }
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
