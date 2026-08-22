@@ -76,8 +76,12 @@ void TcpConnection::Send(const std::string& data) {
     const SOCKET sock = static_cast<SOCKET>(handle_);
     size_t sentTotal = 0;
     while (sentTotal < data.size()) {
-        const int sent =
-            send(sock, data.data() + sentTotal, static_cast<int>(data.size() - sentTotal), 0);
+        const size_t remaining = data.size() - sentTotal;
+        constexpr int kMaxSendLen = 0x7fffffff;  // send()のlenはint
+        const int toSend = remaining > static_cast<size_t>(kMaxSendLen)
+                               ? kMaxSendLen
+                               : static_cast<int>(remaining);
+        const int sent = send(sock, data.data() + sentTotal, toSend, 0);
         if (sent == SOCKET_ERROR) {
             throw TcpError("送信に失敗しました: " + LastErrorMessage());
         }
