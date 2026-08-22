@@ -193,6 +193,19 @@ Win32 API使用時の共通の注意点:
 （アイコン、アクセラレータ、`DIALOGEX`等）を使う場合は、まず小さく検証してから
 本格的に組み込むこと。
 
+## GUIの外部自動化検証における`FindWindow`の既知の問題
+
+[26_CustomerManagementApp](26_CustomerManagementApp)の動作確認で判明した問題として、
+本開発環境では外部の自動化スクリプト(PowerShell)から`FindWindow`(クラス名・
+ウィンドウタイトルどちらで検索しても)を呼ぶと、対象のウィンドウが実際に
+存在し前面に表示されていても戻り値が常に`0`(見つからない)になる。
+
+回避策として、`EnumWindows`で全トップレベルウィンドウを列挙し、
+`GetWindowThreadProcessId`で対象プロセスIDと一致するものを探す方式に
+切り替えたところ、正しくウィンドウハンドルを取得できた。以降のGUI課題で
+外部スクリプトからウィンドウを特定する場合は、`FindWindow`ではなく
+この`EnumWindows`ベースの方式を使うこと。
+
 ## DB連携(21-27番台)で採用したライブラリ・環境上の制約
 
 ### SQLiteはamalgamationをvendoring
