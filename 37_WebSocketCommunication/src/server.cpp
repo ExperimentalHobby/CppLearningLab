@@ -32,7 +32,8 @@ int main(int argc, char** argv) {
                 std::cout << "ハンドシェイクに成功しました。\n";
 
                 for (;;) {
-                    const std::string message = ws::ReceiveTextFrame(connection);
+                    // クライアント→サーバーのフレームは必ずマスクされている(RFC 6455)。
+                    const std::string message = ws::ReceiveTextFrame(connection, /*expectMasked=*/true);
                     std::cout << "受信: " << message << "\n";
                     // サーバー→クライアントのフレームはマスクしてはならない(RFC 6455)。
                     ws::SendTextFrame(connection, "echo: " + message, /*masked=*/false);

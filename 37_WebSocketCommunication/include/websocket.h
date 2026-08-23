@@ -4,7 +4,7 @@
 //
 // スコープの都合で以下は非対応(README参照):
 //   - メッセージのフラグメンテーション(FIN=0の継続フレーム)
-//   - pingpong/close以外の制御フレームの明示的な処理
+//   - ping/pong/closeを含む制御フレームの処理(テキストフレーム以外は全て例外にする)
 //   - 拡張(permessage-deflate等)
 #pragma once
 
@@ -39,6 +39,10 @@ void PerformClientHandshake(net::TcpConnection& connection, const std::string& h
 void SendTextFrame(net::TcpConnection& connection, const std::string& text, bool masked);
 
 // テキストフレームを1つ受信する(フラグメンテーション無しの単一フレームのみ対応)。
-std::string ReceiveTextFrame(net::TcpConnection& connection);
+// RFC 6455により、クライアント→サーバーのフレームは必ずマスクされ、
+// サーバー→クライアントのフレームは非マスクでなければならない。
+// expectMaskedには受信側から見て期待する向きを渡し、実際のマスク有無が
+// これと異なる場合はプロトコル違反として例外を投げる。
+std::string ReceiveTextFrame(net::TcpConnection& connection, bool expectMasked);
 
 }  // namespace ws

@@ -45,7 +45,8 @@ int main(int argc, char** argv) {
             // クライアント→サーバーのフレームは必ずマスクする(RFC 6455)。
             ws::SendTextFrame(connection, message, /*masked=*/true);
             std::cout << "送信: " << message << "\n";
-            const std::string response = ws::ReceiveTextFrame(connection);
+            // サーバー→クライアントのフレームは非マスクでなければならない(RFC 6455)。
+            const std::string response = ws::ReceiveTextFrame(connection, /*expectMasked=*/false);
             std::cout << "  受信: " << response << "\n";
         }
     } catch (const net::TcpError& e) {

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <limits>
 #include <map>
 #include <random>
 #include <sstream>
@@ -31,10 +32,16 @@ std::string Sha1(const std::string& input) {
     DWORD hashObjectSize = 0;
     DWORD hashLength = 0;
     DWORD resultSize = 0;
-    BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&hashObjectSize),
-                       sizeof(hashObjectSize), &resultSize, 0);
-    BCryptGetProperty(algorithm, BCRYPT_HASH_LENGTH, reinterpret_cast<PUCHAR>(&hashLength), sizeof(hashLength),
-                       &resultSize, 0);
+    if (BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH, reinterpret_cast<PUCHAR>(&hashObjectSize),
+                           sizeof(hashObjectSize), &resultSize, 0) != 0) {
+        BCryptCloseAlgorithmProvider(algorithm, 0);
+        throw WebSocketError("BCryptGetProperty(BCRYPT_OBJECT_LENGTH)に失敗しました");
+    }
+    if (BCryptGetProperty(algorithm, BCRYPT_HASH_LENGTH, reinterpret_cast<PUCHAR>(&hashLength), sizeof(hashLength),
+                           &resultSize, 0) != 0) {
+        BCryptCloseAlgorithmProvider(algorithm, 0);
+        throw WebSocketError("BCryptGetProperty(BCRYPT_HASH_LENGTH)に失敗しました");
+    }
 
     std::vector<UCHAR> hashObject(hashObjectSize);
     BCRYPT_HASH_HANDLE hash = nullptr;
@@ -194,7 +201,7 @@ void SendTextFrame(net::TcpConnection& connection, const std::string& text, bool
     connection.Send(frame);
 }
 
-std::string ReceiveTextFrame(net::TcpConnection& connection) {
+std::string ReceiveTextFrame(net::TcpConnection& connection, bool expectMasked) {
     const std::string header = connection.ReceiveExact(2);
     const unsigned char byte0 = static_cast<unsigned char>(header[0]);
     const unsigned char byte1 = static_cast<unsigned char>(header[1]);
@@ -209,6 +216,11 @@ std::string ReceiveTextFrame(net::TcpConnection& connection) {
     }
 
     const bool masked = (byte1 & 0x80) != 0;
+    if (masked != expectMasked) {
+        throw WebSocketError(std::string("RFC 6455違反: マスクの有無が想定と異なります(期待=") +
+                              (expectMasked ? "マスクあり" : "マスクなし") + ", 実際=" +
+                              (masked ? "マスクあり" : "マスクなし") + ")");
+    }
     uint64_t length = byte1 & 0x7F;
     if (length == 126) {
         const std::string ext = connection.ReceiveExact(2);
@@ -219,6 +231,14 @@ std::string ReceiveTextFrame(net::TcpConnection& connection) {
         for (int i = 0; i < 8; ++i) {
             length = (length << 8) | static_cast<unsigned char>(ext[i]);
         }
+    }
+
+    // lengthはネットワークから来たuint64_tであり、size_tが32-bit環境等では
+    // ReceiveExact()に渡す際に切り詰められる恐れがあるため、事前に検証する。
+    // windows.hがmax/minをマクロとして定義していることがあるため、
+    // std::numeric_limitsのmax()がマクロ展開されないよう括弧で保護する。
+    if (length > (std::numeric_limits<size_t>::max)()) {
+        throw WebSocketError("ペイロード長がsize_tの範囲を超えています(length=" + std::to_string(length) + ")");
     }
 
     unsigned char maskKey[4] = {0, 0, 0, 0};
