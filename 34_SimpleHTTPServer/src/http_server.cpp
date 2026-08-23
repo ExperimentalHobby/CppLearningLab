@@ -70,13 +70,30 @@ void HttpServer::Run(uint16_t port) {
 
     for (;;) {
         net::TcpConnection connection = listener.Accept();
-        if (activeConnections_.load() >= kMaxConcurrentConnections) {
+
+        // 上限判定と予約を1回のアトミック操作(fetch_add相当の++)にまとめる。
+        // load()してから条件分岐後に++する2段階の実装だと、将来acceptを
+        // 複数スレッド化した場合などにチェックと加算の間で他のスレッドが
+        // 割り込み、上限を超えてスレッドを起動できてしまう(TOCTOU)。
+        const int reserved = ++activeConnections_;
+        if (reserved > kMaxConcurrentConnections) {
+            --activeConnections_;  // 予約を取り消す
             std::cerr << "同時接続数の上限(" << kMaxConcurrentConnections << ")に達したため接続を拒否しました。\n";
             RejectWithServiceUnavailable(connection);
             continue;  // connectionはここでスコープを抜けてクローズされる
         }
-        ++activeConnections_;
-        std::thread(&HttpServer::HandleConnection, this, std::move(connection)).detach();
+
+        try {
+            std::thread(&HttpServer::HandleConnection, this, std::move(connection)).detach();
+        } catch (const std::exception& e) {
+            // スレッド生成自体が失敗した場合(リソース枯渇等)、HandleConnection
+            // が一度も実行されずRAIIガードによるデクリメントも起きないため、
+            // ここで明示的にロールバックしないと上限が実質的に減り続けてしまう。
+            // また、ここで例外を飲み込まないとRun()の外(main側)まで伝播して
+            // サーバープロセス全体が落ちてしまう。
+            --activeConnections_;
+            std::cerr << "接続処理スレッドの生成に失敗しました: " << e.what() << "\n";
+        }
     }
 }
 
