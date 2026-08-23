@@ -6,6 +6,8 @@
 #endif
 
 #include <iostream>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 #include "binary_protocol.h"
@@ -43,9 +45,21 @@ int main(int argc, char** argv) {
         return 1;
     }
     const std::string host = argv[1];
-    const uint16_t port = static_cast<uint16_t>(std::stoi(argv[2]));
 
     try {
+        int parsedPort = 0;
+        try {
+            parsedPort = std::stoi(argv[2]);
+            // windows.hがmax/minをマクロとして定義していることがあるため、
+            // std::numeric_limitsのmax()がマクロ展開されないよう括弧で保護する。
+            if (parsedPort < 0 || parsedPort > (std::numeric_limits<uint16_t>::max)()) {
+                throw std::out_of_range("port out of range");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("ポート番号は0から65535の整数で指定してください。");
+        }
+        const uint16_t port = static_cast<uint16_t>(parsedPort);
+
         net::WinsockGuard guard;
         net::TcpConnection connection = net::TcpConnection::Connect(host, port);
 
@@ -88,6 +102,9 @@ int main(int argc, char** argv) {
         return 1;
     } catch (const proto::ProtocolError& e) {
         std::cerr << "プロトコルエラー: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
+        std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }
     return 0;
