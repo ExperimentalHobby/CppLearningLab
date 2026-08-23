@@ -4,6 +4,7 @@
 // 「複数接続の同時処理」パターン)。1リクエスト1接続、GETのみ対応。
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <map>
 #include <string>
@@ -32,9 +33,15 @@ class HttpServer {
     void Run(uint16_t port);
 
    private:
+    // 接続ごとに無制限にスレッドを立てるとリソース枯渇(DoS)につながるため、
+    // 同時処理数に上限を設ける。上限超過時は503を返して即座に接続を閉じる。
+    static constexpr int kMaxConcurrentConnections = 64;
+
     std::map<std::string, Handler> routes_;  // キー: "GET /path"
+    std::atomic<int> activeConnections_{0};
 
     void HandleConnection(net::TcpConnection connection);
+    void RejectWithServiceUnavailable(net::TcpConnection& connection);
     RouteResponse Dispatch(const HttpRequest& request) const;
 };
 

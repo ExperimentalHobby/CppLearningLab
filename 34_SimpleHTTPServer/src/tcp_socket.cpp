@@ -13,6 +13,10 @@ std::string LastErrorMessage() {
     return "WSAエラーコード=" + std::to_string(WSAGetLastError());
 }
 
+// 改行が来ない入力(極端に長いHTTPヘッダー行等)でrecvBuffer_が無制限に
+// 増え続けるとメモリDoSになり得るため、1行あたりの上限を設ける。
+constexpr size_t kMaxLineLength = 64 * 1024;  // 64KiB
+
 }  // namespace
 
 // --- TcpConnection ---
@@ -111,6 +115,10 @@ bool TcpConnection::ReceiveLine(std::string& outLine) {
             }
             recvBuffer_.erase(0, newlinePos + 1);
             return true;
+        }
+        if (recvBuffer_.size() > kMaxLineLength) {
+            throw TcpError("受信行が最大長(" + std::to_string(kMaxLineLength) +
+                           "bytes)を超えました。接続を切断します。");
         }
         if (!FillBuffer()) {
             // 接続が閉じられた。バッファに未完成の行が残っていれば最後の1行として返す。

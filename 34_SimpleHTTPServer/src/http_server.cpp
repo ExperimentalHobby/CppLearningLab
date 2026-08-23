@@ -24,7 +24,23 @@ RouteResponse HttpServer::Dispatch(const HttpRequest& request) const {
     return notFound;
 }
 
+void HttpServer::RejectWithServiceUnavailable(net::TcpConnection& connection) {
+    try {
+        const std::string raw = BuildHttpResponse(503, "Service Unavailable", "text/plain; charset=utf-8",
+                                                   "サーバーが混雑しています。しばらくしてから再度お試しください。");
+        connection.Send(raw);
+    } catch (const std::exception&) {
+        // 送信失敗(相手が既に切断済み等)は無視して構わない。
+    }
+}
+
 void HttpServer::HandleConnection(net::TcpConnection connection) {
+    // 関数の終了経路(正常終了/早期return/例外)に関わらず必ずデクリメントする。
+    struct ActiveConnectionGuard {
+        std::atomic<int>& counter;
+        ~ActiveConnectionGuard() { --counter; }
+    } guard{activeConnections_};
+
     try {
         HttpRequest request;
         if (!ReadHttpRequest(connection, request)) {
@@ -54,6 +70,12 @@ void HttpServer::Run(uint16_t port) {
 
     for (;;) {
         net::TcpConnection connection = listener.Accept();
+        if (activeConnections_.load() >= kMaxConcurrentConnections) {
+            std::cerr << "同時接続数の上限(" << kMaxConcurrentConnections << ")に達したため接続を拒否しました。\n";
+            RejectWithServiceUnavailable(connection);
+            continue;  // connectionはここでスコープを抜けてクローズされる
+        }
+        ++activeConnections_;
         std::thread(&HttpServer::HandleConnection, this, std::move(connection)).detach();
     }
 }
