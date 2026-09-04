@@ -11,11 +11,18 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
+# UTF-8/UTF-16変換とファイル読み書きロジックをライブラリに分離し、本体の実行ファイルと
+# テスト実行ファイルの両方からリンクできるようにする。
+add_library(SimpleTextEditorCore src/text_file.cpp)
+target_include_directories(SimpleTextEditorCore PUBLIC include)
+
 add_executable(SimpleTextEditor WIN32
     src/main.cpp
-    src/text_file.cpp
 )
 target_compile_definitions(SimpleTextEditor PRIVATE UNICODE _UNICODE)
-target_include_directories(SimpleTextEditor PRIVATE include)
+target_link_libraries(SimpleTextEditor PRIVATE SimpleTextEditorCore)
 # ファイルを開く/保存の共通ダイアログ(GetOpenFileName/GetSaveFileName)に必要。
 target_link_libraries(SimpleTextEditor PRIVATE comdlg32)
+
+enable_testing()
+add_subdirectory(test)
