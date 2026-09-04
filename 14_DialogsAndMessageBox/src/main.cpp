@@ -51,6 +51,10 @@ void SetResultText(const wchar_t* text) {
     SetWindowTextW(g_hwndResultLabel, text);
 }
 
+// 入力ダイアログのEDITコントロールの内容を、WM_COPYDATAでオーナーウィンドウへ送る。
+// ダイアログとオーナーは別ウィンドウ(モードレス時は別の実行フローで動く)なので、
+// ポインタや参照をそのまま渡すのではなく、COPYDATASTRUCTでデータをコピーして渡す
+// (送信先のプロセス/スレッドが読み取るまでbufferの生存を保証する必要がないようにする)。
 void SendResultCopyData(HWND hDlg) {
     wchar_t buffer[128]{};
     GetDlgItemTextW(hDlg, kIdInputEdit, buffer, static_cast<int>(std::size(buffer)));
@@ -221,6 +225,9 @@ void CreateChildControls(HWND hwnd, HINSTANCE hInstance) {
         reinterpret_cast<LPARAM>(hFont));
 }
 
+// 各ボタン押下時にメッセージボックス/入力ダイアログを表示し、選択結果を
+// 結果ラベルへ反映する。メッセージボックス系はモーダル(MessageBoxW自体が
+// ブロックする)なので、この関数から戻った時点で既にユーザーの選択が確定している。
 void OnCommand(HWND hwnd, HINSTANCE hInstance, WPARAM wParam) {
     switch (LOWORD(wParam)) {
         case kIdConfirmButton: {
