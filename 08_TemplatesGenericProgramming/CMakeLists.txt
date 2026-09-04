@@ -11,8 +11,15 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_executable(TemplatesGenericProgramming
-    src/main.cpp
-    src/display.cpp
-)
-target_include_directories(TemplatesGenericProgramming PRIVATE include)
+# ToDisplayStringの明示的特殊化(bool/std::string版)をライブラリに分離し、本体の
+# 実行ファイルとテスト実行ファイルの両方からリンクできるようにする。
+# FixedStack/FixedQueue/Max/ToDisplayStringの汎用版はヘッダオンリーのテンプレートのため、
+# テストファイル側でinclude/を直接インクルードするだけで検証できる。
+add_library(TemplatesGenericProgrammingCore src/display.cpp)
+target_include_directories(TemplatesGenericProgrammingCore PUBLIC include)
+
+add_executable(TemplatesGenericProgramming src/main.cpp)
+target_link_libraries(TemplatesGenericProgramming PRIVATE TemplatesGenericProgrammingCore)
+
+enable_testing()
+add_subdirectory(test)
