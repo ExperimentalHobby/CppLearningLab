@@ -62,6 +62,8 @@ void WorkerThreadProc(HWND hwnd) {
     PostMessageW(hwnd, kWmDone, cancelled ? 1 : 0, 0);
 }
 
+// 「開始」ボタン押下時の処理。UIの状態(ボタンの有効/無効、プログレスバー)を
+// ワーカースレッド起動前にUIスレッド上で更新してから、std::threadを生成する。
 void OnStart(HWND hwnd) {
     if (g_workerThread.joinable()) {
         return;  // 既に実行中
@@ -74,14 +76,20 @@ void OnStart(HWND hwnd) {
     g_workerThread = std::thread(WorkerThreadProc, hwnd);
 }
 
+// 「キャンセル」ボタン押下時の処理。フラグを立てるだけで、実際にスレッドを止めるのは
+// ワーカースレッド自身がWorkerThreadProc内でこのフラグを見て自発的に抜ける(強制終了はしない)。
 void OnCancel() {
     g_cancelRequested = true;
 }
 
+// kWmProgress受信時の処理。ワーカースレッドから渡された進捗値をそのままプログレスバーへ
+// 反映する(UIの更新は必ずUIスレッド上のこの関数で行い、ワーカースレッドからは直接触らない)。
 void OnProgress(WPARAM wParam) {
     SendMessageW(g_hwndProgress, PBM_SETPOS, wParam, 0);
 }
 
+// kWmDone受信時の処理。ワーカースレッドは既にPostMessageを送って終了間際なので、
+// ここでjoinしても長く待たされることはない(単なる後始末としてのjoin)。
 void OnDone(WPARAM wParam) {
     if (g_workerThread.joinable()) {
         g_workerThread.join();
