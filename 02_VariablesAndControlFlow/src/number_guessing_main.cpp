@@ -6,6 +6,8 @@
 #include <windows.h>
 #endif
 
+#include "number_guessing.h"
+
 int main(int argc, char* argv[]) {
 #ifdef _WIN32
     // コンソールの入出力コードページをUTF-8に合わせる。既定のコードページ(Shift-JIS等)の
@@ -40,13 +42,18 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        if (guess == answer) {
-            std::cout << "正解！ " << attempt << "回で当てました。" << std::endl;
-            return 0;
-        } else if (guess < answer) {
-            std::cout << "もっと大きい数です。" << std::endl;
-        } else {
-            std::cout << "もっと小さい数です。" << std::endl;
+        // 大小/正解の判定ロジックはnumber_guessing.cppに切り出してあり、単体テストで検証済み。
+        // ここでは判定結果に応じたメッセージの出し分けだけを行う。
+        switch (JudgeGuess(guess, answer)) {
+            case GuessJudgment::Correct:
+                std::cout << "正解！ " << attempt << "回で当てました。" << std::endl;
+                return 0;
+            case GuessJudgment::TooLow:
+                std::cout << "もっと大きい数です。" << std::endl;
+                break;
+            case GuessJudgment::TooHigh:
+                std::cout << "もっと小さい数です。" << std::endl;
+                break;
         }
     }
 

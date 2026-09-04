@@ -11,6 +11,25 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_executable(FizzBuzz src/fizzbuzz.cpp)
-add_executable(GradeJudgment src/grade_judgment.cpp)
-add_executable(NumberGuessingGame src/number_guessing_game.cpp)
+# 各プログラムの判定ロジックをライブラリに分離し、本体の実行ファイルと
+# テスト実行ファイルの両方からリンクできるようにする。
+add_library(FizzBuzzCore src/fizzbuzz.cpp)
+target_include_directories(FizzBuzzCore PUBLIC include)
+
+add_library(GradeJudgmentCore src/grade_judgment.cpp)
+target_include_directories(GradeJudgmentCore PUBLIC include)
+
+add_library(NumberGuessingCore src/number_guessing.cpp)
+target_include_directories(NumberGuessingCore PUBLIC include)
+
+add_executable(FizzBuzz src/fizzbuzz_main.cpp)
+target_link_libraries(FizzBuzz PRIVATE FizzBuzzCore)
+
+add_executable(GradeJudgment src/grade_judgment_main.cpp)
+target_link_libraries(GradeJudgment PRIVATE GradeJudgmentCore)
+
+add_executable(NumberGuessingGame src/number_guessing_main.cpp)
+target_link_libraries(NumberGuessingGame PRIVATE NumberGuessingCore)
+
+enable_testing()
+add_subdirectory(test)

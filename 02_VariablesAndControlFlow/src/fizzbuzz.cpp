@@ -1,37 +1,15 @@
-#include <iostream>
-#include <vector>
+#include "fizzbuzz.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
-int main() {
-#ifdef _WIN32
-    // コンソールの出力コードページをUTF-8に合わせる。本プログラムの出力はASCIIのみだが、
-    // 同課題内の他プログラム(日本語出力あり)と同じ初期化を統一しておく。
-    SetConsoleOutputCP(CP_UTF8);
-#endif
-
-    constexpr int kMin = 1;
-    constexpr int kMax = 30;
-
-    std::vector<int> numbers;
-    for (int n = kMin; n <= kMax; ++n) {
-        numbers.push_back(n);
+// 15/3/5の倍数判定を上位の条件から順に評価する(15の倍数は3の倍数でも5の倍数でもあるため、
+// 先に判定しないと"Fizz"や"Buzz"止まりになってしまう)。
+std::string FizzBuzzValue(int n) {
+    if (n % 15 == 0) {
+        return "FizzBuzz";
+    } else if (n % 3 == 0) {
+        return "Fizz";
+    } else if (n % 5 == 0) {
+        return "Buzz";
+    } else {
+        return std::to_string(n);
     }
-
-    // 範囲forとautoで、1〜30をFizzBuzzのルールに従って出力する。
-    for (const auto& n : numbers) {
-        if (n % 15 == 0) {
-            std::cout << "FizzBuzz" << std::endl;
-        } else if (n % 3 == 0) {
-            std::cout << "Fizz" << std::endl;
-        } else if (n % 5 == 0) {
-            std::cout << "Buzz" << std::endl;
-        } else {
-            std::cout << n << std::endl;
-        }
-    }
-
-    return 0;
 }
