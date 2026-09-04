@@ -11,10 +11,17 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_executable(PointersAndMemory
-    src/main.cpp
+# 各データ構造のロジックをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(PointersAndMemoryCore
     src/linked_list.cpp
     src/tree_node.cpp
     src/scoped_resource.cpp
 )
-target_include_directories(PointersAndMemory PRIVATE include)
+target_include_directories(PointersAndMemoryCore PUBLIC include)
+
+add_executable(PointersAndMemory src/main.cpp)
+target_link_libraries(PointersAndMemory PRIVATE PointersAndMemoryCore)
+
+enable_testing()
+add_subdirectory(test)

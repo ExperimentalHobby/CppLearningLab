@@ -43,6 +43,8 @@ std::size_t RawIntList::Size() const {
 // --- SmartIntList ---
 
 void SmartIntList::PushFront(int value) {
+    // 新しいノードのnextに、これまでの先頭(head_)の所有権をstd::moveで譲渡する。
+    // head_自体はムーブ後に空(nullptr)になるので、最後に新しいノードの所有権をhead_へ移す。
     auto node = std::make_unique<Node>(Node{value, std::move(head_)});
     head_ = std::move(node);
 }
