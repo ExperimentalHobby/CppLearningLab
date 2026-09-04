@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.claude/**'
+      - 'LICENSE'
+      - 'CppLearningLab.code-workspace'
+      - '.gitignore'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.claude/**'
+      - 'LICENSE'
+      - 'CppLearningLab.code-workspace'
+      - '.gitignore'
+  schedule:
+    # 毎週月曜 9:00 JST（UTC日曜 24:00）に全プロジェクトを対象として実行する
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+env:
+  # このパス配下が変更されている場合は、通常時のpush/pull_requestであっても全プロジェクトを
+  # 対象にする(third_partyはGoogleTest/SQLite3のvendoring先で、複数課題から参照される)。
+  # 注意: .github/workflows/ci.ymlの変更は含めない。このワークフロー自体の修正ごとに
+  # 毎回全プロジェクトの再ビルドが走ると、差分実行本来の目的(変更のない大多数のプロジェクトを
+  # スキップして高速化する)が果たせなくなる。ワークフローの変更が実際に全プロジェクトへ
+  # 影響するかどうかはPRの内容次第であり、影響範囲が広いと判断した場合は手動でworkflow_dispatch
+  # (常に全プロジェクト対象)を実行して確認する運用とする
+  COMMON_PATH_PREFIXES: "third_party"
+
+jobs:
+  detect-changes:
+    name: Detect Changed Projects
+    runs-on: windows-latest
+    outputs:
+      projects: ${{ steps.detect.outputs.projects }}
+      has_projects: ${{ steps.detect.outputs.has_projects }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed projects
+        id: detect
+        shell: pwsh
+        run: |
+          $eventName = "${{ github.event_name }}"
+          $full = $false
+          $changedFiles = @()
+
+          if ($eventName -eq "schedule" -or $eventName -eq "workflow_dispatch") {
+            # 週次の定期実行、および手動実行は常に全プロジェクトを対象にする
+            $full = $true
+          }
+          elseif ($eventName -eq "pull_request") {
+            $base = "${{ github.event.pull_request.base.sha }}"
+            $changedFiles = git diff --name-only $base HEAD
+          }
+          elseif ($eventName -eq "push") {
+            $before = "${{ github.event.before }}"
+            if ($before -match '^0+$') {
+              # 新規ブランチ作成直後などdiff元が存在しない場合は安全側に倒して全体を対象にする
+              $full = $true
+            } else {
+              $changedFiles = git diff --name-only $before HEAD
+            }
+          }
+          else {
+            $full = $true
+          }
+
+          $commonPrefixes = "${{ env.COMMON_PATH_PREFIXES }}" -split ','
+          foreach ($f in $changedFiles) {
+            foreach ($prefix in $commonPrefixes) {
+              if ($f -eq $prefix -or $f.StartsWith("$prefix/")) {
+                $full = $true
+              }
+            }
+          }
+
+          # フォルダ名が命名規則(NN_AppName)に合致していても、CMakeLists.txtがまだ存在しない
+          # 未実装のプレースホルダー（READMEのみ等、例: 41〜47のUSBカテゴリ)はビルド対象から除外する
+          $allProjects = @(
+            Get-ChildItem -Directory -Name |
+              Where-Object { $_ -match '^\d{2}_' } |
+              Where-Object { Test-Path (Join-Path $_ 'CMakeLists.txt') } |
+              Sort-Object
+          )
+
+          if ($full) {
+            $targetProjects = $allProjects
+          } else {
+            $targetProjects = @(
+              $changedFiles |
+                ForEach-Object { ($_ -replace '\\', '/') -split '/' | Select-Object -First 1 } |
+                Where-Object { $allProjects -contains $_ } |
+                Sort-Object -Unique
+            )
+          }
+
+          if ($targetProjects.Count -eq 0) {
+            $json = "[]"
+          } else {
+            # ConvertTo-Jsonは配列をそのまま渡しても正しく配列JSONを返すため、要素数1でも
+            # 追加でラップしない(誤って二重ラップすると[["A"]]のような壊れたJSONになり、
+            # 後続のfromJson(...)でmatrix.projectが文字列ではなく配列になってしまう)。
+            $json = ConvertTo-Json -InputObject $targetProjects -Compress
+          }
+
+          Write-Host "full=$full"
+          Write-Host "targetProjects=$($targetProjects -join ', ')"
+
+          "projects=$json" >> $env:GITHUB_OUTPUT
+          "has_projects=$($targetProjects.Count -gt 0)" >> $env:GITHUB_OUTPUT
+
+  build-and-test:
+    name: Build & Test (${{ matrix.project }})
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_projects == 'True'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        project: ${{ fromJson(needs.detect-changes.outputs.projects) }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v3
+
+      - name: Configure (CMake + Ninja, x64-debug preset)
+        working-directory: ${{ matrix.project }}
+        run: cmake --preset x64-debug
+
+      - name: Build
+        working-directory: ${{ matrix.project }}
+        run: cmake --build --preset x64-debug
+
+      - name: Test
+        shell: pwsh
+        working-directory: ${{ matrix.project }}
+        run: |
+          # GoogleTestを導入済みの課題は out/build/x64-debug/test/ 配下にテスト実行ファイルが
+          # 生成される。未導入の課題(GUI/通信/USB等)はこのディレクトリ自体が存在しないため、
+          # スキップする(該当課題は手動動作確認で代替する方針: CLAUDE.md参照)。
+          $testDir = "out/build/x64-debug/test"
+          if (-not (Test-Path $testDir)) {
+            Write-Host "No test directory under $testDir, skipping."
+            exit 0
+          }
+
+          $testExes = @(Get-ChildItem -Path $testDir -Filter '*.exe' -File)
+          if ($testExes.Count -eq 0) {
+            Write-Host "No test executables found under $testDir, skipping."
+            exit 0
+          }
+
+          foreach ($exe in $testExes) {
+            Write-Host "Running $($exe.Name)"
+            & $exe.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "$($exe.Name) failed with exit code $LASTEXITCODE"
+            }
+          }
