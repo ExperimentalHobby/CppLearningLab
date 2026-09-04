@@ -9,6 +9,8 @@
 
 #include <iterator>
 
+#include "reflect_format.h"
+
 namespace {
 
 constexpr wchar_t kWindowClassName[] = L"EventHandlingClass";
@@ -73,17 +75,10 @@ void OnReflectButtonClicked(HWND hwnd) {
 
     ++g_reflectCount;
 
-    wchar_t resultText[300]{};
-    if (buffer[0] == L'\0') {
-        wsprintfW(resultText, L"(空の入力が反映されました)");
-    } else {
-        wsprintfW(resultText, L"%s", buffer);
-    }
-    SetWindowTextW(g_hwndResultLabel, resultText);
-
-    wchar_t countText[64]{};
-    wsprintfW(countText, L"反映回数: %d", g_reflectCount);
-    SetWindowTextW(g_hwndCountLabel, countText);
+    // 表示文字列の組み立てはHWNDに依存しないためreflect_format.cppに切り出してあり、
+    // 単体テストで検証済み。ここではコントロールから読み取った値を渡すだけ。
+    SetWindowTextW(g_hwndResultLabel, FormatReflectResult(buffer).c_str());
+    SetWindowTextW(g_hwndCountLabel, FormatReflectCount(g_reflectCount).c_str());
 
     (void)hwnd;
 }
