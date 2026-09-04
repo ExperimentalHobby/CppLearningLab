@@ -254,3 +254,16 @@ Boost.Beast等を挙げているが、本リポジトリではいずれも導入
 いずれも既存のGUIライブラリ選定(Win32 API採用)・DBライブラリ選定
 (SQLite/ODBC採用)と同じ「追加インストール無しでWindows標準ツールのみを使う」
 という一貫した方針に基づく。
+
+## 自動テスト(GoogleTest)について
+
+各課題の純粋ロジック部分(パーサー、統計計算、プロトコルのエンコード/デコード等)は
+[GoogleTest](https://github.com/google/googletest)で単体テストする。sqlite3と同様に
+パッケージマネージャを使わず、[third_party/googletest](third_party/googletest/NOTICE.md)に
+ソース一式(`include/`/`src/`のみ、約1MB)をvendoringし、各課題の`test/CMakeLists.txt`から
+相対パスで参照して静的ライブラリとしてビルドする。GUI(Win32 API)・ソケット通信・シリアル・
+USB等、実機・実環境に依存する部分は自動テスト化が難しいため対象外とし、手動動作確認
+（PR本文の「動作確認」セクションに記載）で代替する。
+
+[01_BuildEnvironmentSetup](01_BuildEnvironmentSetup/README.md#テスト)でこの配線パターンを
+確立し、以降の課題に順次展開している（進捗は各カテゴリのGitHub Issueで管理）。

@@ -1,6 +1,8 @@
 #include <iostream>
 
+#include "greeting.h"
+
 int main() {
-    std::cout << "Hello, C++ Learning Lab!" << std::endl;
+    std::cout << GetGreetingMessage() << std::endl;
     return 0;
 }
