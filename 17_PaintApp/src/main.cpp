@@ -11,18 +11,13 @@
 
 #include <initializer_list>
 
+#include "pen_settings.h"
+
 namespace {
 
 constexpr wchar_t kWindowClassName[] = L"PaintAppClass";
 constexpr wchar_t kWindowTitle[] = L"17. Paint App - C++ Learning Lab";
 
-constexpr int kIdColorBlack = 201;
-constexpr int kIdColorRed = 202;
-constexpr int kIdColorBlue = 203;
-constexpr int kIdColorGreen = 204;
-constexpr int kIdWidthThin = 211;
-constexpr int kIdWidthMedium = 212;
-constexpr int kIdWidthThick = 213;
 constexpr int kIdClear = 220;
 
 HDC g_hdcMem = nullptr;      // 描画内容を保持するメモリDC
@@ -120,16 +115,10 @@ void UpdateMenuChecks(HWND hwnd) {
         CheckMenuItem(hWidthMenu, id, MF_BYCOMMAND | MF_UNCHECKED);
     }
 
-    int colorId = kIdColorBlack;
-    if (g_penColor == RGB(255, 0, 0)) colorId = kIdColorRed;
-    else if (g_penColor == RGB(0, 0, 255)) colorId = kIdColorBlue;
-    else if (g_penColor == RGB(0, 160, 0)) colorId = kIdColorGreen;
-    CheckMenuItem(hColorMenu, colorId, MF_BYCOMMAND | MF_CHECKED);
-
-    int widthId = kIdWidthMedium;
-    if (g_penWidth <= 1) widthId = kIdWidthThin;
-    else if (g_penWidth >= 6) widthId = kIdWidthThick;
-    CheckMenuItem(hWidthMenu, widthId, MF_BYCOMMAND | MF_CHECKED);
+    // 色/太さからチェック対象メニューIDを判定するロジックはpen_settings.cppに
+    // 切り出してあり、単体テストで検証済み。
+    CheckMenuItem(hColorMenu, ColorToMenuId(g_penColor), MF_BYCOMMAND | MF_CHECKED);
+    CheckMenuItem(hWidthMenu, WidthToMenuId(g_penWidth), MF_BYCOMMAND | MF_CHECKED);
 }
 
 void OnCommand(HWND hwnd, WPARAM wParam) {
