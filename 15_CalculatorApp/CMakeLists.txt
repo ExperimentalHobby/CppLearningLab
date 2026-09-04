@@ -11,9 +11,16 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
+# Calculatorの計算ロジックをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(CalculatorAppCore src/calculator.cpp)
+target_include_directories(CalculatorAppCore PUBLIC include)
+
 add_executable(CalculatorApp WIN32
     src/main.cpp
-    src/calculator.cpp
 )
 target_compile_definitions(CalculatorApp PRIVATE UNICODE _UNICODE)
-target_include_directories(CalculatorApp PRIVATE include)
+target_link_libraries(CalculatorApp PRIVATE CalculatorAppCore)
+
+enable_testing()
+add_subdirectory(test)
