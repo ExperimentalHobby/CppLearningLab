@@ -11,9 +11,17 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
+# ステータスバーの表示文字列組み立てロジックをライブラリに分離し、本体の実行ファイルと
+# テスト実行ファイルの両方からリンクできるようにする。
+add_library(BasicWidgetsCore src/widget_status.cpp)
+target_include_directories(BasicWidgetsCore PUBLIC include)
+
 add_executable(BasicWidgets WIN32
     src/main.cpp
 )
 target_compile_definitions(BasicWidgets PRIVATE UNICODE _UNICODE)
 # ツールバー/ステータスバーはコモンコントロールなので comctl32 が必要。
-target_link_libraries(BasicWidgets PRIVATE comctl32)
+target_link_libraries(BasicWidgets PRIVATE BasicWidgetsCore comctl32)
+
+enable_testing()
+add_subdirectory(test)

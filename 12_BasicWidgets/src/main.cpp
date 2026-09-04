@@ -12,6 +12,8 @@
 
 #pragma comment(lib, "comctl32.lib")
 
+#include "widget_status.h"
+
 namespace {
 
 constexpr wchar_t kWindowClassName[] = L"BasicWidgetsClass";
@@ -195,10 +197,9 @@ void OnCommand(HWND hwnd, WPARAM wParam) {
                 wchar_t buffer[256]{};
                 GetWindowTextW(g_hwndEdit, buffer, static_cast<int>(std::size(buffer)));
                 const bool checked = SendMessageW(g_hwndCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
-                wchar_t status[320]{};
-                wsprintfW(status, L"適用: 名前=\"%s\", 通知=%s", buffer,
-                          checked ? L"ON" : L"OFF");
-                SetStatusText(status);
+                // 表示文字列の組み立てはHWNDに依存しないためwidget_status.cppに切り出してあり、
+                // 単体テストで検証済み。ここではコントロールから読み取った値を渡すだけ。
+                SetStatusText(FormatApplyStatus(buffer, checked).c_str());
             }
             return;
         default:
