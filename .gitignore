@@ -36,3 +36,6 @@ Makefile
 # OS files
 Thumbs.db
 .DS_Store
+
+# Claude Code local planning docs (not part of PRs)
+docs/

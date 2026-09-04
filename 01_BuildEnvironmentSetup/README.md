@@ -38,6 +38,17 @@ cmake --build build
 `Hello, C++ Learning Lab!` と表示されれば成功。`build/` は `.gitignore` 対象なので
 コミットされない。
 
+## テスト
+
+挨拶メッセージの組み立てロジック（`include/greeting.h`/`src/greeting.cpp`）を
+[third_party/googletest](../third_party/googletest) を使って単体テストしている
+（本リポジトリで最初にGoogleTestを導入した課題であり、以降の課題のテンプレートとなる）。
+
+```sh
+cmake --build build --target BuildEnvironmentSetupTests
+.\build\test\Debug\BuildEnvironmentSetupTests.exe
+```
+
 ## Visual Studio 2026 で開く
 
 このリポジトリではCMakeを唯一のビルド定義とし、`.sln`/`.vcxproj` は手動作成・コミットしない
