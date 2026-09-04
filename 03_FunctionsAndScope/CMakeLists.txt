@@ -11,8 +11,13 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_executable(FunctionsAndScope
-    src/main.cpp
-    src/math_utils.cpp
-)
-target_include_directories(FunctionsAndScope PRIVATE include)
+# math_utilsのロジックをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(FunctionsAndScopeCore src/math_utils.cpp)
+target_include_directories(FunctionsAndScopeCore PUBLIC include)
+
+add_executable(FunctionsAndScope src/main.cpp)
+target_link_libraries(FunctionsAndScope PRIVATE FunctionsAndScopeCore)
+
+enable_testing()
+add_subdirectory(test)

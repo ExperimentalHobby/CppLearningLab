@@ -7,6 +7,7 @@
 namespace math_utils {
 
 int Gcd(int a, int b) {
+    // 負の値が渡されても正の最大公約数を返せるよう、先に絶対値を取っておく。
     a = std::abs(a);
     b = std::abs(b);
     while (b != 0) {
@@ -18,6 +19,7 @@ int Gcd(int a, int b) {
 }
 
 int Lcm(int a, int b) {
+    // Gcd(0, x) == x となり0除算(a / Gcd)が発生するため、片方が0の場合は先に0を返す。
     if (a == 0 || b == 0) {
         return 0;
     }
@@ -29,8 +31,11 @@ bool IsPrime(int n) {
         return false;
     }
     if (n % 2 == 0) {
+        // 2だけが唯一の偶数の素数。それ以外の偶数はここで弾く。
         return n == 2;
     }
+    // 奇数のみを対象に、sqrt(n)まで試し割りする(i*iがオーバーフローしないよう
+    // long longにキャストして比較する)。
     for (int i = 3; static_cast<long long>(i) * i <= n; i += 2) {
         if (n % i == 0) {
             return false;
@@ -78,6 +83,8 @@ void Swap(int& a, int& b) {
 int SumOfDigits(const std::string& digits) {
     int sum = 0;
     for (const char c : digits) {
+        // std::isdigitはcharが負の値(符号付きcharで0x80以上の文字)の場合に未定義動作となるため、
+        // unsigned charにキャストしてから渡す。
         if (!std::isdigit(static_cast<unsigned char>(c))) {
             throw std::invalid_argument("digits must contain only digit characters: " + digits);
         }

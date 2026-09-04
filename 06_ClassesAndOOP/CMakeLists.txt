@@ -11,11 +11,18 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_executable(ClassesAndOOP
-    src/main.cpp
+# 図形クラス階層をライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(ClassesAndOOPCore
     src/shape.cpp
     src/circle.cpp
     src/rectangle.cpp
     src/square.cpp
 )
-target_include_directories(ClassesAndOOP PRIVATE include)
+target_include_directories(ClassesAndOOPCore PUBLIC include)
+
+add_executable(ClassesAndOOP src/main.cpp)
+target_link_libraries(ClassesAndOOP PRIVATE ClassesAndOOPCore)
+
+enable_testing()
+add_subdirectory(test)
