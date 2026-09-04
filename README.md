@@ -193,6 +193,19 @@ Win32 API使用時の共通の注意点:
 （アイコン、アクセラレータ、`DIALOGEX`等）を使う場合は、まず小さく検証してから
 本格的に組み込むこと。
 
+## GUIの外部自動化検証における`FindWindow`の既知の問題
+
+[26_CustomerManagementApp](26_CustomerManagementApp)の動作確認で判明した問題として、
+本開発環境では外部の自動化スクリプト(PowerShell)から`FindWindow`(クラス名・
+ウィンドウタイトルどちらで検索しても)を呼ぶと、対象のウィンドウが実際に
+存在し前面に表示されていても戻り値が常に`0`(見つからない)になる。
+
+回避策として、`EnumWindows`で全トップレベルウィンドウを列挙し、
+`GetWindowThreadProcessId`で対象プロセスIDと一致するものを探す方式に
+切り替えたところ、正しくウィンドウハンドルを取得できた。以降のGUI課題で
+外部スクリプトからウィンドウを特定する場合は、`FindWindow`ではなく
+この`EnumWindows`ベースの方式を使うこと。
+
 ## DB連携(21-27番台)で採用したライブラリ・環境上の制約
 
 ### SQLiteはamalgamationをvendoring
@@ -219,3 +232,25 @@ MySQL/PostgreSQLはいずれも公式のODBCドライバを提供しており、
 によるエラーメッセージ整形）は実際に検証済み。実サーバーで確認する場合は、
 DockerでMySQL/PostgreSQLコンテナを起動し、対応するODBCドライバをインストールした上で
 接続文字列を渡すこと。
+
+## 通信(31-38番台)で採用したライブラリについて
+
+31〜38番台(通信)の各課題READMEは、当初の想定ライブラリとしてBoost.Asio/libcurl/
+Boost.Beast等を挙げているが、本リポジトリではいずれも導入されておらず追加
+インストールもできないため、Windows SDK標準のライブラリのみで構成する。
+
+- **31/32/34/36/38番(TCP/UDP/HTTPサーバー/チャットサーバー/独自プロトコル)**:
+  **Winsock2**(`ws2_32.lib`)を使い、ソケットAPIを直接扱う
+- **33番(HTTPクライアント)**: libcurlの代わりに**WinHTTP**(`winhttp.lib`、
+  HTTPS対応の高レベルAPI)を使う。JSONパースはnlohmann/json等が無いため
+  自作する(27番のCSVパーサーと同じ方針)
+- **35番(シリアル通信)**: Boost.Asioのシリアルポート機能の代わりに
+  **Windows API**(`CreateFile`/`SetCommState`等)を直接使う
+- **37番(WebSocket通信)**: Boost.Beast/websocketppの代わりに、31番のWinsock2
+  実装の上にRFC 6455のハンドシェイク/フレーミングを自作する。SHA-1計算のみ
+  Windows標準の**CNG(BCrypt) API**(`bcrypt.h`)を使う(自前でSHA-1を実装すると
+  暗号関連コードの車輪の再発明になり、バグの温床にもなりやすいため)
+
+いずれも既存のGUIライブラリ選定(Win32 API採用)・DBライブラリ選定
+(SQLite/ODBC採用)と同じ「追加インストール無しでWindows標準ツールのみを使う」
+という一貫した方針に基づく。
