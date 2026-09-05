@@ -6,8 +6,8 @@ PCに接続されているUSBデバイスの一覧を取得し、USBデバイス
 
 ## 学習ポイント
 - USBデバイスの列挙API
-- デバイスハンドルの取得と解放
-- クロスプラットフォームUSBライブラリの基本的な使い方
+- デバイス情報セット(`HDEVINFO`)の取得と解放
+- Windows標準API(SetupAPI)によるデバイス情報取得の基本的な使い方
 
 ## 採用ライブラリについて
 
@@ -41,7 +41,8 @@ cmake --build --preset x64-debug
 | 要素 | 内容 | 学習ポイント |
 |---|---|---|
 | `EnumerateUsbDevices()` | `SetupDiGetClassDevsW(nullptr, L"USB", ...)`でUSBバス配下のデバイスを列挙 | USBデバイスの列挙API |
-| `SetupDiEnumDeviceInfo`のループ | デバイス情報セットのハンドルを1件ずつ列挙し、最後に`SetupDiDestroyDeviceInfoList`で解放 | デバイスハンドルの取得と解放 |
+| `DevInfoSetGuard` | `HDEVINFO`(デバイス情報セット)をRAIIで保持し、正常終了・例外どちらの場合も`SetupDiDestroyDeviceInfoList`で確実に解放 | デバイス情報セットの取得と解放 |
+| `TryGetRegistryPropertyString()` | 必要サイズを問い合わせてから動的にバッファを確保し`SetupDiGetDeviceRegistryPropertyW`で取得 | Windows標準APIによるデバイス情報取得の基本 |
 | `UsbDeviceEntry` | インスタンスID+説明を保持する最小限の構造体 | 列挙結果の受け渡し方 |
 
 ## 動作確認
