@@ -33,12 +33,16 @@ int main(int argc, char** argv) {
     }
 
     const std::string portName = argv[1];
-    // USB CDCデバイスの多くは仮想的にボーレートを解釈するだけで、実際のUSB
-    // 通信速度には影響しない(USBバス自体の速度で転送される)。それでも
-    // SetCommStateへの設定自体は必要なため、通常のシリアルポートと同様に指定する。
-    const uint32_t baudRate = argc > 2 ? static_cast<uint32_t>(std::stoul(argv[2])) : 9600;
 
     try {
+        // USB CDCデバイスの多くは仮想的にボーレートを解釈するだけで、実際の
+        // USB通信速度には影響しない(USBバス自体の速度で転送される)。それでも
+        // SetCommStateへの設定自体は必要なため、通常のシリアルポートと同様に
+        // 指定する。std::stoul(非数値/範囲外でstd::invalid_argument/
+        // std::out_of_rangeを送出しうる)をtry内に置き、下のcatchで
+        // 使い方誤りとしてエラーメッセージを出せるようにする(35番と同じ構成)。
+        const uint32_t baudRate = argc > 2 ? static_cast<uint32_t>(std::stoul(argv[2])) : 9600;
+
         serial::SerialPort port;
         serial::SerialSettings settings;
         settings.baudRate = baudRate;
@@ -62,6 +66,9 @@ int main(int argc, char** argv) {
             }
         }
     } catch (const serial::SerialError& e) {
+        std::cerr << "エラー: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }
