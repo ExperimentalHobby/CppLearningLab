@@ -29,3 +29,6 @@ target_link_libraries(WebSocketServer PRIVATE websocket_common)
 
 add_executable(WebSocketClient src/client.cpp)
 target_link_libraries(WebSocketClient PRIVATE websocket_common)
+
+enable_testing()
+add_subdirectory(test)

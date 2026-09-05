@@ -90,6 +90,9 @@ HttpResponse HttpsGet(const std::string& host, const std::string& path, const st
                         WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
     response.statusCode = static_cast<int>(statusCode);
 
+    // レスポンスボディは1回のWinHttpReadDataで全部読めるとは限らないため、
+    // WinHttpQueryDataAvailableが0(=読み取れるデータが無くなった)を返すまで
+    // 読み取りを繰り返してresponse.bodyに連結していく。
     for (;;) {
         DWORD available = 0;
         if (!WinHttpQueryDataAvailable(request.get(), &available)) {

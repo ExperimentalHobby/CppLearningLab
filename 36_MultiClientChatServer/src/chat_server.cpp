@@ -67,6 +67,9 @@ void ChatServer::Run(uint16_t port) {
         client->connection = std::move(connection);
 
         {
+            // 受信専用スレッドを立てる前にclients_へ登録しておく必要がある。
+            // 逆順にすると、登録前に他クライアントからのBroadcastが届いた場合に
+            // この接続が一覧から漏れてしまう(競合状態を避けるための順序)。
             std::lock_guard<std::mutex> lock(mutex_);
             clients_.push_back(client);
         }

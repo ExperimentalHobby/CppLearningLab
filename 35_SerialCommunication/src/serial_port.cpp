@@ -86,8 +86,8 @@ void SerialPort::Open(const std::string& portName, const SerialSettings& setting
         throw SerialError("無効なストップビット数です(1または2を指定してください): " +
                           std::to_string(settings.stopBits));
     }
-    dcb.fBinary = TRUE;
-    dcb.fParity = settings.parity != Parity::kNone;
+    dcb.fBinary = TRUE;  // Windowsのシリアル通信はバイナリモード必須(テキストモード非対応)。
+    dcb.fParity = settings.parity != Parity::kNone;  // パリティ無し以外を選んだ場合のみ検査を有効化。
 
     if (!SetCommState(handle, &dcb)) {
         const std::string message = "SetCommStateに失敗しました: " + LastErrorMessage();

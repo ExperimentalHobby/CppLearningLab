@@ -16,13 +16,22 @@ endif()
 
 find_package(Threads REQUIRED)
 
-add_executable(SimpleHTTPServer
-    src/main.cpp
+# HttpServer/HttpMessage/TcpSocketをライブラリに分離し、本体の実行ファイルとテスト
+# 実行ファイルの両方からリンクできるようにする。自動テストの対象は、この中でも
+# TcpConnectionに依存しない純粋な文字列処理であるBuildHttpResponseのみ
+# (ReadHttpRequest/HttpServerは実ソケット通信が前提のため対象外)。
+add_library(SimpleHTTPServerCore
     src/http_server.cpp
     src/http_message.cpp
     src/tcp_socket.cpp
     src/winsock_guard.cpp
 )
-target_include_directories(SimpleHTTPServer PRIVATE include)
+target_include_directories(SimpleHTTPServerCore PUBLIC include)
 # Winsock2はWindows SDK標準のためvcpkg等の追加インストール不要。
-target_link_libraries(SimpleHTTPServer PRIVATE ws2_32 Threads::Threads)
+target_link_libraries(SimpleHTTPServerCore PUBLIC ws2_32 Threads::Threads)
+
+add_executable(SimpleHTTPServer src/main.cpp)
+target_link_libraries(SimpleHTTPServer PRIVATE SimpleHTTPServerCore)
+
+enable_testing()
+add_subdirectory(test)
