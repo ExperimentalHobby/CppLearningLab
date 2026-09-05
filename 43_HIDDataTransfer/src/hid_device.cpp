@@ -41,6 +41,25 @@ class DevInfoSetGuard {
     HDEVINFO handle_;
 };
 
+// CreateFileWが返すHANDLEをスコープ終了時(正常終了・例外のどちらでも)
+// 確実にCloseHandleで解放するためのRAIIガード(DevInfoSetGuardと同じ考え方)。
+class HandleGuard {
+   public:
+    explicit HandleGuard(HANDLE handle) : handle_(handle) {}
+    ~HandleGuard() {
+        if (handle_ != INVALID_HANDLE_VALUE) {
+            CloseHandle(handle_);
+        }
+    }
+    HandleGuard(const HandleGuard&) = delete;
+    HandleGuard& operator=(const HandleGuard&) = delete;
+
+    HANDLE get() const { return handle_; }
+
+   private:
+    HANDLE handle_;
+};
+
 // SP_DEVICE_INTERFACE_DETAIL_DATA_Wは可変長構造体(DevicePathが末尾に続く)のため、
 // 必要なバイト数を事前に問い合わせてから確保する。
 std::wstring GetDeviceInterfacePath(HDEVINFO devInfoSet, SP_DEVICE_INTERFACE_DATA& interfaceData) {
@@ -152,12 +171,15 @@ std::vector<HidReport> ReadReports(const std::wstring& devicePath, int count) {
         throw HidError("デバイスを開けませんでした(他プロセスが排他使用中の可能性があります): " +
                         LastErrorMessage());
     }
+    // 以降でstd::vectorの確保等が例外を投げても、HandleGuardのデストラクタが
+    // 確実にCloseHandleを呼ぶため、デバイスハンドルがリークしない。
+    HandleGuard guard(handle);
 
     // Input Reportのバイト数はデバイスごとに異なるため、HidD_GetPreparsedData+
     // HidP_GetCapsで実際のサイズを問い合わせる。取得できない場合は無難な既定値を使う。
     USHORT reportLength = 64;
     PHIDP_PREPARSED_DATA preparsedData = nullptr;
-    if (HidD_GetPreparsedData(handle, &preparsedData)) {
+    if (HidD_GetPreparsedData(guard.get(), &preparsedData)) {
         HIDP_CAPS caps{};
         if (HidP_GetCaps(preparsedData, &caps) == HIDP_STATUS_SUCCESS && caps.InputReportByteLength > 0) {
             reportLength = caps.InputReportByteLength;
@@ -169,16 +191,13 @@ std::vector<HidReport> ReadReports(const std::wstring& devicePath, int count) {
     std::vector<uint8_t> buffer(reportLength);
     for (int i = 0; i < count; ++i) {
         DWORD bytesRead = 0;
-        if (!ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr)) {
-            const std::string message = "レポートの読み取りに失敗しました: " + LastErrorMessage();
-            CloseHandle(handle);
-            throw HidError(message);
+        if (!ReadFile(guard.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr)) {
+            throw HidError("レポートの読み取りに失敗しました: " + LastErrorMessage());
         }
         const std::vector<uint8_t> received(buffer.begin(), buffer.begin() + bytesRead);
         reports.push_back(ParseReport(received));
     }
 
-    CloseHandle(handle);
     return reports;
 }
 
