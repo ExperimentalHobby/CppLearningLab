@@ -10,6 +10,7 @@
 #include <windows.h>
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include "serial_port.h"
