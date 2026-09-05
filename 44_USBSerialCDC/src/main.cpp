@@ -21,6 +21,26 @@ void PrintUsage(const char* programName) {
               << "例: " << programName << " COM3 115200\n";
 }
 
+// std::stoul()は"-1"のような負号付き文字列も受理し、符号なし整数として
+// 非常に大きい値に変換してしまう(std::invalid_argumentにならない)。
+// ボーレートは正の整数であるべきなので、負号・0・末尾のゴミ文字を
+// 明示的に拒否する。不正な場合はstd::invalid_argumentを投げ、main()側の
+// catch(std::exception&)で使い方誤りとして扱う。
+uint32_t ParseBaudRate(const std::string& text) {
+    if (!text.empty() && text.front() == '-') {
+        throw std::invalid_argument("ボーレートに負の値は指定できません: " + text);
+    }
+    size_t pos = 0;
+    const unsigned long value = std::stoul(text, &pos);
+    if (pos != text.size()) {
+        throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
+    }
+    if (value == 0) {
+        throw std::invalid_argument("ボーレートは1以上を指定してください: " + text);
+    }
+    return static_cast<uint32_t>(value);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -38,10 +58,10 @@ int main(int argc, char** argv) {
         // USB CDCデバイスの多くは仮想的にボーレートを解釈するだけで、実際の
         // USB通信速度には影響しない(USBバス自体の速度で転送される)。それでも
         // SetCommStateへの設定自体は必要なため、通常のシリアルポートと同様に
-        // 指定する。std::stoul(非数値/範囲外でstd::invalid_argument/
-        // std::out_of_rangeを送出しうる)をtry内に置き、下のcatchで
-        // 使い方誤りとしてエラーメッセージを出せるようにする(35番と同じ構成)。
-        const uint32_t baudRate = argc > 2 ? static_cast<uint32_t>(std::stoul(argv[2])) : 9600;
+        // 指定する。ParseBaudRate()内のstd::stoulが送出しうる例外はtry内で
+        // 発生させ、下のcatchで使い方誤りとしてエラーメッセージを出せる
+        // ようにする(35番と同じ構成)。
+        const uint32_t baudRate = argc > 2 ? ParseBaudRate(argv[2]) : 9600;
 
         serial::SerialPort port;
         serial::SerialSettings settings;
