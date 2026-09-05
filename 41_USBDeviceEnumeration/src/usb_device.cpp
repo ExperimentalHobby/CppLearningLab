@@ -48,7 +48,17 @@ std::optional<std::wstring> TryGetRegistryPropertyString(HDEVINFO devInfoSet,
     SetupDiGetDeviceRegistryPropertyW(devInfoSet, &devInfoData, property, nullptr, nullptr, 0,
                                        &requiredSize);
     if (requiredSize == 0) {
-        return std::nullopt;
+        // 失敗理由がERROR_INVALID_DATAであれば「そのプロパティ自体が
+        // 設定されていない」という正常なケースなのでnulloptを返す。
+        // それ以外(アクセス拒否等)は原因不明のまま握りつぶさず例外にする。
+        const DWORD firstCallError = GetLastError();
+        if (firstCallError == ERROR_INVALID_DATA) {
+            return std::nullopt;
+        }
+        throw UsbEnumerationError("SetupDiGetDeviceRegistryPropertyW(プロパティ=" +
+                                   std::to_string(property) +
+                                   ")のサイズ取得に失敗しました: エラーコード=" +
+                                   std::to_string(firstCallError));
     }
 
     // requiredSizeはバイト数。wchar_t単位に切り上げ、念のため終端NUL分の
@@ -57,7 +67,10 @@ std::optional<std::wstring> TryGetRegistryPropertyString(HDEVINFO devInfoSet,
     if (!SetupDiGetDeviceRegistryPropertyW(
             devInfoSet, &devInfoData, property, nullptr, reinterpret_cast<PBYTE>(buffer.data()),
             static_cast<DWORD>(buffer.size() * sizeof(wchar_t)), nullptr)) {
-        return std::nullopt;
+        throw UsbEnumerationError("SetupDiGetDeviceRegistryPropertyW(プロパティ=" +
+                                   std::to_string(property) +
+                                   ")の再取得に失敗しました: エラーコード=" +
+                                   std::to_string(GetLastError()));
     }
     return std::wstring(buffer.data());
 }
