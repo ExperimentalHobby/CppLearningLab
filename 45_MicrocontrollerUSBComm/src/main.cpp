@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include "mcu_protocol.h"
@@ -17,6 +18,27 @@ namespace {
 
 void PrintMenu() {
     std::cout << "\n1: LED_ON  2: LED_OFF  3: GET_SENSOR  0: 終了\n選択: ";
+}
+
+// std::stoul()は"-1"のような負号付き文字列も受理し、符号なし整数として
+// 非常に大きい値に変換してしまう(std::invalid_argumentにならない)。
+// ボーレートは正の整数であるべきなので、負号・0・末尾のゴミ文字を
+// 明示的に拒否する(44_USBSerialCDCと同じ対応)。不正な場合は
+// std::invalid_argumentを投げ、main()側のcatch(std::exception&)で
+// 使い方誤りとして扱う。
+uint32_t ParseBaudRate(const std::string& text) {
+    if (!text.empty() && text.front() == '-') {
+        throw std::invalid_argument("ボーレートに負の値は指定できません: " + text);
+    }
+    size_t pos = 0;
+    const unsigned long value = std::stoul(text, &pos);
+    if (pos != text.size()) {
+        throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
+    }
+    if (value == 0) {
+        throw std::invalid_argument("ボーレートは1以上を指定してください: " + text);
+    }
+    return static_cast<uint32_t>(value);
 }
 
 void PrintResponse(const mcu::ResponseResult& response) {
@@ -43,9 +65,12 @@ int main(int argc, char** argv) {
         return 1;
     }
     const std::string portName = argv[1];
-    const uint32_t baudRate = argc > 2 ? static_cast<uint32_t>(std::stoul(argv[2])) : 9600;
 
     try {
+        // ParseBaudRate()内のstd::stoulが送出しうる例外はtry内で発生させ、
+        // 下のcatchで使い方誤りとしてエラーメッセージを出せるようにする。
+        const uint32_t baudRate = argc > 2 ? ParseBaudRate(argv[2]) : 9600;
+
         serial::SerialPort port;
         serial::SerialSettings settings;
         settings.baudRate = baudRate;
@@ -82,6 +107,9 @@ int main(int argc, char** argv) {
             PrintResponse(mcu::ParseResponse(line));
         }
     } catch (const serial::SerialError& e) {
+        std::cerr << "エラー: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;
     }

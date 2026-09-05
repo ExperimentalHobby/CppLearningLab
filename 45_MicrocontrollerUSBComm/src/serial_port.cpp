@@ -58,7 +58,14 @@ void SerialPort::Open(const std::string& portName, const SerialSettings& setting
 
     // "\\\\.\\COM1"形式のデバイスパスにすると、COM10以降(2桁以上の番号)でも
     // 問題なく開ける(素の"COM1"形式は1桁の番号でしか正しく動作しないことがある)。
-    const std::wstring devicePath = L"\\\\.\\" + Utf8ToWide(portName);
+    // 呼び出し側が既にこの"\\.\"形式で渡してきた場合にここで無条件に前置すると
+    // "\\.\\.\COM10"のように二重になり必ずオープンに失敗するため、まだ
+    // 前置されていない場合のみ付与する。
+    const std::string kDevicePrefix = "\\\\.\\";
+    const std::string fullPortName = (portName.compare(0, kDevicePrefix.size(), kDevicePrefix) == 0)
+                                          ? portName
+                                          : kDevicePrefix + portName;
+    const std::wstring devicePath = Utf8ToWide(fullPortName);
 
     HANDLE handle = CreateFileW(devicePath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
                                  0, nullptr);
@@ -98,7 +105,15 @@ void SerialPort::Open(const std::string& portName, const SerialSettings& setting
     handle_ = handle;
 
     // 既定では無限待ちになりうるため、Open直後に妥当なタイムアウトを設定しておく。
-    SetReadTimeout(1000);
+    // ここでSetCommTimeouts失敗等により例外が発生すると、Open()自体は失敗
+    // 扱いなのにhandle_が設定されたままポートが開いた状態で残ってしまう
+    // ため、失敗時はClose()で確実に閉じてから再送出する。
+    try {
+        SetReadTimeout(1000);
+    } catch (...) {
+        Close();
+        throw;
+    }
 }
 
 void SerialPort::Close() {
@@ -148,6 +163,13 @@ size_t SerialPort::Write(const std::string& data) {
     if (handle_ == nullptr) {
         throw SerialError("ポートが開かれていません");
     }
+    // WriteFileへ渡すサイズはDWORD(32bit)のため、data.size()(64bit環境では
+    // size_t)がMAXDWORDを超えると静かに切り詰められ、戻り値や実際の送信
+    // 内容が呼び出し側の意図と一致しなくなる。あらかじめ範囲を検証する。
+    if (data.size() > MAXDWORD) {
+        throw SerialError("書き込みデータが大きすぎます(DWORDの範囲を超えています): " +
+                          std::to_string(data.size()) + " bytes");
+    }
     DWORD written = 0;
     if (!WriteFile(static_cast<HANDLE>(handle_), data.data(), static_cast<DWORD>(data.size()), &written,
                     nullptr)) {
@@ -159,6 +181,15 @@ size_t SerialPort::Write(const std::string& data) {
 std::string SerialPort::Read(size_t maxSize) {
     if (handle_ == nullptr) {
         throw SerialError("ポートが開かれていません");
+    }
+    if (maxSize == 0) {
+        return "";
+    }
+    // ReadFileへ渡すサイズはDWORD(32bit)のため、maxSizeがMAXDWORDを超えると
+    // バッファ確保サイズとWinAPI呼び出しサイズが不整合になる。
+    if (maxSize > MAXDWORD) {
+        throw SerialError("読み取りサイズが大きすぎます(DWORDの範囲を超えています): " +
+                          std::to_string(maxSize) + " bytes");
     }
     std::string buffer(maxSize, '\0');
     DWORD readBytes = 0;

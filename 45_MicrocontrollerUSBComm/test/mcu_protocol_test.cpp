@@ -1,6 +1,7 @@
 #include "mcu_protocol.h"
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 
 using mcu::BuildCommandLine;
 using mcu::Command;
@@ -16,6 +17,12 @@ TEST(BuildCommandLineTest, BuildsLedOffCommand) {
 
 TEST(BuildCommandLineTest, BuildsGetSensorCommand) {
     EXPECT_EQ(BuildCommandLine(Command::kGetSensor), "GET_SENSOR\n");
+}
+
+// static_cast等で列挙子の範囲外の値を渡された場合、空文字列を返して
+// 呼び出し側に気づかせないのではなく、原因を明示する例外を投げる。
+TEST(BuildCommandLineTest, ThrowsForUnknownCommandValue) {
+    EXPECT_THROW(BuildCommandLine(static_cast<Command>(999)), std::invalid_argument);
 }
 
 TEST(ParseResponseTest, ParsesOkResponse) {

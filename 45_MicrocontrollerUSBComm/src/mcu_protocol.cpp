@@ -1,6 +1,7 @@
 #include "mcu_protocol.h"
 
 #include <stdexcept>
+#include <string>
 
 namespace mcu {
 
@@ -13,7 +14,11 @@ std::string BuildCommandLine(Command command) {
         case Command::kGetSensor:
             return "GET_SENSOR\n";
     }
-    return "";
+    // enum class Commandの全列挙子はswitchで網羅済みのため、ここに到達するのは
+    // 未定義の値がstatic_cast等で渡された場合のみ。空文字列を返すと呼び出し側が
+    // 気づかずそのまま送信してしまうため、原因を明示するために例外にする。
+    throw std::invalid_argument("不明なCommand値です: " +
+                                std::to_string(static_cast<int>(command)));
 }
 
 ResponseResult ParseResponse(const std::string& line) {

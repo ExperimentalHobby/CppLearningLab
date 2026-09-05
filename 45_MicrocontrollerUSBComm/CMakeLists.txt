@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.20)
 
 project(MicrocontrollerUSBComm CXX)
 
+# serial_port.cpp/main.cppがwindows.hに直接依存しており非Windows環境では
+# 必ずビルド不能なため、原因不明のビルドエラーになる前にconfigure時点で
+# 明示的に失敗させる。
+if(NOT WIN32)
+    message(FATAL_ERROR "45_MicrocontrollerUSBCommはWindows標準API(CreateFile等)に依存しており、Windows専用です。")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

@@ -19,6 +19,7 @@ enum class Command {
 
 // commandに対応する送信用の1行(末尾に'\n'付き)を組み立てる。
 // 例: kLedOn -> "LED_ON\n"
+// 未定義のCommand値が渡された場合はstd::invalid_argumentを投げる。
 std::string BuildCommandLine(Command command);
 
 struct ResponseResult {
