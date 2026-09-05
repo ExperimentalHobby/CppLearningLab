@@ -105,7 +105,15 @@ void SerialPort::Open(const std::string& portName, const SerialSettings& setting
     handle_ = handle;
 
     // 既定では無限待ちになりうるため、Open直後に妥当なタイムアウトを設定しておく。
-    SetReadTimeout(1000);
+    // ここでSetCommTimeouts失敗等により例外が発生すると、Open()自体は失敗
+    // 扱いなのにhandle_が設定されたままポートが開いた状態で残ってしまう
+    // ため、失敗時はClose()で確実に閉じてから再送出する。
+    try {
+        SetReadTimeout(1000);
+    } catch (...) {
+        Close();
+        throw;
+    }
 }
 
 void SerialPort::Close() {
