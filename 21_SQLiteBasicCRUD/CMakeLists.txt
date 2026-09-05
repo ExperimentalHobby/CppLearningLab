@@ -24,9 +24,14 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /utf-8)
 endif()
 
-add_executable(SQLiteBasicCRUD
-    src/main.cpp
-    src/todo_repository.cpp
-)
-target_include_directories(SQLiteBasicCRUD PRIVATE include)
-target_link_libraries(SQLiteBasicCRUD PRIVATE sqlite3)
+# TodoRepositoryをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(SQLiteBasicCRUDCore src/todo_repository.cpp)
+target_include_directories(SQLiteBasicCRUDCore PUBLIC include)
+target_link_libraries(SQLiteBasicCRUDCore PUBLIC sqlite3)
+
+add_executable(SQLiteBasicCRUD src/main.cpp)
+target_link_libraries(SQLiteBasicCRUD PRIVATE SQLiteBasicCRUDCore)
+
+enable_testing()
+add_subdirectory(test)
