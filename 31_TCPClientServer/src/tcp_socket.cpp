@@ -79,6 +79,8 @@ TcpConnection TcpConnection::Connect(const std::string& host, uint16_t port,
 void TcpConnection::Send(const std::string& data) {
     const SOCKET sock = static_cast<SOCKET>(handle_);
     size_t sentTotal = 0;
+    // 1回のsend()がdata全体を送り切る保証は無い(送信バッファの空き次第で
+    // 部分的にしか送れないことがある)ため、送りきるまでループする。
     while (sentTotal < data.size()) {
         const size_t remaining = data.size() - sentTotal;
         constexpr int kMaxSendLen = 0x7fffffff;  // send()のlenはint
