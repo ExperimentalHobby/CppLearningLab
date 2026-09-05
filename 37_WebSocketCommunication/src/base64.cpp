@@ -20,6 +20,7 @@ std::string Base64Encode(const std::string& data) {
         i += 3;
     }
 
+    // 入力が3バイトの倍数でない端数(1〜2バイト)を、'='でパディングしつつ処理する。
     const size_t remaining = data.size() - i;
     if (remaining == 1) {
         const unsigned int chunk = static_cast<unsigned char>(data[i]) << 16;
