@@ -23,8 +23,17 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /utf-8)
 endif()
 
+# Repository<T, Mapper>やUser/Productはヘッダオンリー(実装を持つ.cppが無い)ため、
+# INTERFACEライブラリとしてinclude/とsqlite3の依存だけをまとめ、本体の実行ファイルと
+# テスト実行ファイルの両方から同じ設定でインクルードできるようにする。
+add_library(ORMWrapperDesignCore INTERFACE)
+target_include_directories(ORMWrapperDesignCore INTERFACE include)
+target_link_libraries(ORMWrapperDesignCore INTERFACE sqlite3)
+
 add_executable(ORMWrapperDesign
     src/main.cpp
 )
-target_include_directories(ORMWrapperDesign PRIVATE include)
-target_link_libraries(ORMWrapperDesign PRIVATE sqlite3)
+target_link_libraries(ORMWrapperDesign PRIVATE ORMWrapperDesignCore)
+
+enable_testing()
+add_subdirectory(test)
