@@ -58,7 +58,14 @@ void SerialPort::Open(const std::string& portName, const SerialSettings& setting
 
     // "\\\\.\\COM1"形式のデバイスパスにすると、COM10以降(2桁以上の番号)でも
     // 問題なく開ける(素の"COM1"形式は1桁の番号でしか正しく動作しないことがある)。
-    const std::wstring devicePath = L"\\\\.\\" + Utf8ToWide(portName);
+    // 呼び出し側が既にこの"\\.\"形式で渡してきた場合にここで無条件に前置すると
+    // "\\.\\.\COM10"のように二重になり必ずオープンに失敗するため、まだ
+    // 前置されていない場合のみ付与する。
+    const std::string kDevicePrefix = "\\\\.\\";
+    const std::string fullPortName = (portName.compare(0, kDevicePrefix.size(), kDevicePrefix) == 0)
+                                          ? portName
+                                          : kDevicePrefix + portName;
+    const std::wstring devicePath = Utf8ToWide(fullPortName);
 
     HANDLE handle = CreateFileW(devicePath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
                                  0, nullptr);

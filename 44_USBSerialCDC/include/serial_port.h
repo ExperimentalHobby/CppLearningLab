@@ -54,6 +54,8 @@ class SerialPort {
 
     // 読み取りタイムアウト(1バイト間の最大待ち時間 = ReadIntervalTimeout、
     // および全体の最大待ち時間)をミリ秒単位で設定する。
+    // あわせて書き込みタイムアウト(WriteTotalTimeoutConstant)も1000msに
+    // 固定で設定する(引数のtotalTimeoutMsは読み取り側のみに反映される)。
     void SetReadTimeout(uint32_t totalTimeoutMs);
 
     // 実際にポートへ適用されている設定をGetCommStateで読み戻す。
