@@ -14,11 +14,20 @@ if(MSVC)
     add_compile_options(/EHsc)
 endif()
 
+# JsonValue(ネットワーク非依存の純粋JSONパーサー)をライブラリに分離し、本体の実行
+# ファイルとテスト実行ファイルの両方からリンクできるようにする。HttpClientは
+# WinHTTPによる実HTTPS通信のため、自動テスト対象外としてexecutable側に残す。
+add_library(HTTPClientCore src/json_value.cpp)
+target_include_directories(HTTPClientCore PUBLIC include)
+
 add_executable(HTTPClient
     src/main.cpp
     src/http_client.cpp
-    src/json_value.cpp
 )
 target_include_directories(HTTPClient PRIVATE include)
+target_link_libraries(HTTPClient PRIVATE HTTPClientCore)
 # WinHTTPはWindows SDK標準のためvcpkg等の追加インストール不要。
 target_link_libraries(HTTPClient PRIVATE winhttp)
+
+enable_testing()
+add_subdirectory(test)
