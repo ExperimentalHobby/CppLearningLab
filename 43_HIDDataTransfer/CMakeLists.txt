@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.20)
 
 project(HIDDataTransfer CXX)
 
+# hid.lib/setupapi.lib、windows.hに直接依存しており非Windows環境では
+# 必ずビルド不能なため、原因不明のビルドエラーになる前にconfigure時点で
+# 明示的に失敗させる。
+if(NOT WIN32)
+    message(FATAL_ERROR "43_HIDDataTransferはWindows標準のHID API(hid.lib)/SetupAPIに依存しており、Windows専用です。")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

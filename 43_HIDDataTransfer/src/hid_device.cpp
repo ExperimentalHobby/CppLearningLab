@@ -46,8 +46,12 @@ class DevInfoSetGuard {
 std::wstring GetDeviceInterfacePath(HDEVINFO devInfoSet, SP_DEVICE_INTERFACE_DATA& interfaceData) {
     DWORD requiredSize = 0;
     SetupDiGetDeviceInterfaceDetailW(devInfoSet, &interfaceData, nullptr, 0, &requiredSize, nullptr);
+    // サイズ問い合わせはバッファ不足(ERROR_INSUFFICIENT_BUFFER、requiredSizeに
+    // 必要サイズが入る)で失敗するのが正常系。それ以外の理由で失敗した場合に
+    // 黙ってスキップすると、列挙結果が原因不明のまま欠けてしまうため例外にする。
     if (requiredSize == 0) {
-        return L"";
+        throw HidError("SetupDiGetDeviceInterfaceDetailW(サイズ取得)に失敗しました: " +
+                        LastErrorMessage());
     }
 
     std::vector<BYTE> buffer(requiredSize);
@@ -55,7 +59,7 @@ std::wstring GetDeviceInterfacePath(HDEVINFO devInfoSet, SP_DEVICE_INTERFACE_DAT
     detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
     if (!SetupDiGetDeviceInterfaceDetailW(devInfoSet, &interfaceData, detail, requiredSize, nullptr,
                                           nullptr)) {
-        return L"";
+        throw HidError("SetupDiGetDeviceInterfaceDetailWの再取得に失敗しました: " + LastErrorMessage());
     }
     return detail->DevicePath;
 }

@@ -21,9 +21,18 @@ std::string WideToUtf8(const std::wstring& wide) {
     }
     const int len = WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), nullptr,
                                          0, nullptr, nullptr);
+    if (len <= 0) {
+        // 変換に失敗した場合、ヌル文字列長でstd::stringを確保してそのまま
+        // 返すと表示が欠落・破損しているように見えて原因が分かりにくいため、
+        // 空文字列で早期リターンする。
+        return "";
+    }
     std::string utf8(static_cast<size_t>(len), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), utf8.data(), len, nullptr,
-                        nullptr);
+    const int written = WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()),
+                                             utf8.data(), len, nullptr, nullptr);
+    if (written <= 0) {
+        return "";
+    }
     return utf8;
 }
 #endif
