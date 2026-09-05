@@ -87,6 +87,8 @@ void UdpSocket::SendTo(const std::string& data, const Endpoint& dest) {
 
 size_t UdpSocket::ReceiveFrom(std::string& outData, Endpoint& from, size_t maxSize) {
     std::vector<char> buffer(maxSize);
+    // recvfromは呼び出し前にsenderAddrLenへバッファサイズを設定しておく必要があり、
+    // 呼び出し後は実際に書き込まれたアドレス長に上書きされる(可変長引数パターン)。
     sockaddr_in senderAddr{};
     int senderAddrLen = sizeof(senderAddr);
 
