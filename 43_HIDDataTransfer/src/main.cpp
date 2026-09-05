@@ -63,7 +63,15 @@ int main() {
     try {
         // 非数値入力(std::invalid_argument)や桁あふれ(std::out_of_range)は
         // 未捕捉のまま異常終了させず、CLIとしてエラーメッセージを返して終了する。
-        selected = static_cast<size_t>(std::stoul(line));
+        // std::stoulは末尾に数字以外が続く文字列(例: "12abc")でも先頭の数字
+        // 部分だけを解釈して成功してしまうため、posで変換に使われた文字数を
+        // 受け取り、入力文字列全体が数値だったかを検証する。
+        size_t pos = 0;
+        selected = static_cast<size_t>(std::stoul(line, &pos));
+        if (pos != line.size()) {
+            std::cerr << "数値を入力してください。\n";
+            return 1;
+        }
     } catch (const std::exception&) {
         std::cerr << "数値を入力してください。\n";
         return 1;
