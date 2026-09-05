@@ -134,6 +134,8 @@ bool TodoRepository::Update(long long id, const std::string& title, bool done) {
     if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
         ThrowLastError("TODOの更新に失敗しました");
     }
+    // UPDATE自体はWHERE条件に一致する行が無くてもSQLITE_DONEを返すため、
+    // 実際に更新された行数(sqlite3_changes)を見て存在有無を呼び出し元に伝える。
     return sqlite3_changes(db_) > 0;
 }
 

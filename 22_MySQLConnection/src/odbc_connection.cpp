@@ -173,6 +173,8 @@ QueryResult OdbcConnection::ExecuteQuery(const std::string& sql) {
             result.rows.push_back(std::move(row));
         }
     } catch (...) {
+        // 途中で例外が発生してもステートメントハンドルを必ず解放してから、
+        // 例外そのものは呼び出し元に伝播させる(ハンドルリークを防ぐ)。
         SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
         throw;
     }

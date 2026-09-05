@@ -23,11 +23,18 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /utf-8)
 endif()
 
+# CustomerRepositoryをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(CustomerManagementAppCore src/customer_repository.cpp)
+target_include_directories(CustomerManagementAppCore PUBLIC include)
+target_link_libraries(CustomerManagementAppCore PUBLIC sqlite3)
+
 add_executable(CustomerManagementApp WIN32
     src/main.cpp
-    src/customer_repository.cpp
 )
-target_include_directories(CustomerManagementApp PRIVATE include)
 target_compile_definitions(CustomerManagementApp PRIVATE UNICODE _UNICODE)
 # 一覧表示用のSysListView32(レポートビュー)用。
-target_link_libraries(CustomerManagementApp PRIVATE comctl32 sqlite3)
+target_link_libraries(CustomerManagementApp PRIVATE CustomerManagementAppCore comctl32)
+
+enable_testing()
+add_subdirectory(test)

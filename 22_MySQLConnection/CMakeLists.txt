@@ -14,13 +14,22 @@ if(MSVC)
     add_compile_options(/EHsc)
 endif()
 
+# 接続文字列の組み立てロジック(DBサーバー非依存)をライブラリに分離し、本体の実行
+# ファイルとテスト実行ファイルの両方からリンクできるようにする。OdbcConnectionは
+# 実際のDBサーバーへの接続が前提のため、自動テストの対象外としてexecutable側に残す。
+add_library(MySQLConnectionCore src/connection_string.cpp)
+target_include_directories(MySQLConnectionCore PUBLIC include)
+
 add_executable(MySQLConnection
     src/main.cpp
-    src/connection_string.cpp
     src/odbc_connection.cpp
 )
 target_include_directories(MySQLConnection PRIVATE include)
+target_link_libraries(MySQLConnection PRIVATE MySQLConnectionCore)
 
 # ODBCはWindows SDK標準のためvcpkg等の追加インストール不要。
 # MySQL/PostgreSQLいずれも公式ODBCドライバを提供しており、同じAPIで接続できる。
 target_link_libraries(MySQLConnection PRIVATE odbc32 odbccp32)
+
+enable_testing()
+add_subdirectory(test)

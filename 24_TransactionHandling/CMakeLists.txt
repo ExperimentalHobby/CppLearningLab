@@ -23,10 +23,17 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /utf-8)
 endif()
 
-add_executable(TransactionHandling
-    src/main.cpp
+# BankLedger/ScopedTransactionをライブラリに分離し、本体の実行ファイルとテスト実行
+# ファイルの両方からリンクできるようにする。
+add_library(TransactionHandlingCore
     src/bank_ledger.cpp
     src/scoped_transaction.cpp
 )
-target_include_directories(TransactionHandling PRIVATE include)
-target_link_libraries(TransactionHandling PRIVATE sqlite3)
+target_include_directories(TransactionHandlingCore PUBLIC include)
+target_link_libraries(TransactionHandlingCore PUBLIC sqlite3)
+
+add_executable(TransactionHandling src/main.cpp)
+target_link_libraries(TransactionHandling PRIVATE TransactionHandlingCore)
+
+enable_testing()
+add_subdirectory(test)

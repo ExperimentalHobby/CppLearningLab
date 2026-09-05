@@ -23,10 +23,17 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /utf-8)
 endif()
 
-add_executable(CSVImportExport
-    src/main.cpp
+# csv_utils/product_csvをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(CSVImportExportCore
     src/csv_utils.cpp
     src/product_csv.cpp
 )
-target_include_directories(CSVImportExport PRIVATE include)
-target_link_libraries(CSVImportExport PRIVATE sqlite3)
+target_include_directories(CSVImportExportCore PUBLIC include)
+target_link_libraries(CSVImportExportCore PUBLIC sqlite3)
+
+add_executable(CSVImportExport src/main.cpp)
+target_link_libraries(CSVImportExport PRIVATE CSVImportExportCore)
+
+enable_testing()
+add_subdirectory(test)
