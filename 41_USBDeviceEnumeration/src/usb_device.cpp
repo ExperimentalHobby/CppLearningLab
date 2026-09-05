@@ -8,7 +8,8 @@
 #include <iterator>
 #include <optional>
 
-#pragma comment(lib, "setupapi.lib")
+// setupapi.libのリンクはCMakeLists.txt(target_link_libraries)側で行っており、
+// ここで#pragma commentを重ねるとビルド定義が二重管理になるため指定しない。
 
 namespace usb {
 

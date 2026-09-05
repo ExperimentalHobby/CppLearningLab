@@ -46,7 +46,6 @@ int main() {
     // コンソールの出力コードページをUTF-8に合わせる。既定のコードページ(Shift-JIS等)の
     // ままだと、UTF-8で出力した日本語が文字化けする。
     SetConsoleOutputCP(CP_UTF8);
-#endif
 
     try {
         const auto devices = usb::EnumerateUsbDevices();
@@ -61,4 +60,11 @@ int main() {
     }
 
     return 0;
+#else
+    // usb_device.cppはWindows標準のSetupAPIに直接依存しており、非Windows環境では
+    // ビルド・実行できない。WideToUtf8()も_WIN32時のみ定義しているため、
+    // ここを常時呼び出す構成にすると非Windows環境で未定義参照になってしまう。
+    std::cerr << "このツールはWindows標準のSetupAPIに依存しており、Windows専用です。\n";
+    return 1;
+#endif
 }
