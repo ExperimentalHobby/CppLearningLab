@@ -3,7 +3,6 @@
 // 接続中のHIDデバイスを一覧表示し、番号で選んだデバイスからInput Reportを
 // 指定回数読み取ってコンソールへ表示する。
 #include <iostream>
-#include <limits>
 #include <string>
 
 #ifdef _WIN32
