@@ -21,6 +21,26 @@ std::string LastErrorMessage() {
     return "エラーコード=" + std::to_string(GetLastError());
 }
 
+// SetupDiGetClassDevsWが返すHDEVINFOをスコープ終了時(正常終了・例外の
+// どちらでも)確実にSetupDiDestroyDeviceInfoListで解放するためのRAIIガード
+// (41_USBDeviceEnumerationのDevInfoSetGuardと同じ考え方)。
+class DevInfoSetGuard {
+   public:
+    explicit DevInfoSetGuard(HDEVINFO handle) : handle_(handle) {}
+    ~DevInfoSetGuard() {
+        if (handle_ != INVALID_HANDLE_VALUE) {
+            SetupDiDestroyDeviceInfoList(handle_);
+        }
+    }
+    DevInfoSetGuard(const DevInfoSetGuard&) = delete;
+    DevInfoSetGuard& operator=(const DevInfoSetGuard&) = delete;
+
+    HDEVINFO get() const { return handle_; }
+
+   private:
+    HDEVINFO handle_;
+};
+
 // SP_DEVICE_INTERFACE_DETAIL_DATA_Wは可変長構造体(DevicePathが末尾に続く)のため、
 // 必要なバイト数を事前に問い合わせてから確保する。
 std::wstring GetDeviceInterfacePath(HDEVINFO devInfoSet, SP_DEVICE_INTERFACE_DATA& interfaceData) {
@@ -69,14 +89,17 @@ std::vector<HidDeviceInfo> EnumerateHidDevices() {
     if (devInfoSet == INVALID_HANDLE_VALUE) {
         throw HidError("SetupDiGetClassDevsWに失敗しました: " + LastErrorMessage());
     }
+    // 以降で例外が発生してもDevInfoSetGuardのデストラクタが確実に
+    // SetupDiDestroyDeviceInfoListを呼ぶため、ハンドルがリークしない。
+    DevInfoSetGuard guard(devInfoSet);
 
     std::vector<HidDeviceInfo> devices;
     SP_DEVICE_INTERFACE_DATA interfaceData{};
     interfaceData.cbSize = sizeof(interfaceData);
 
     for (DWORD index = 0;
-         SetupDiEnumDeviceInterfaces(devInfoSet, nullptr, &hidGuid, index, &interfaceData); ++index) {
-        const std::wstring devicePath = GetDeviceInterfacePath(devInfoSet, interfaceData);
+         SetupDiEnumDeviceInterfaces(guard.get(), nullptr, &hidGuid, index, &interfaceData); ++index) {
+        const std::wstring devicePath = GetDeviceInterfacePath(guard.get(), interfaceData);
         if (devicePath.empty()) {
             continue;
         }
@@ -102,7 +125,16 @@ std::vector<HidDeviceInfo> EnumerateHidDevices() {
         devices.push_back(std::move(info));
     }
 
-    SetupDiDestroyDeviceInfoList(devInfoSet);
+    // SetupDiEnumDeviceInterfacesは列挙し尽くすとERROR_NO_MORE_ITEMSでfalseを返す
+    // 仕様であり、それ以外のエラーで途中終了した場合と区別するため最後にチェックする。
+    // guardの解放(SetupDiDestroyDeviceInfoList呼び出し)でGetLastError()の値が
+    // 上書きされる前に、ここで読み取っておく。
+    const DWORD lastError = GetLastError();
+    if (lastError != ERROR_NO_MORE_ITEMS) {
+        throw HidError("SetupDiEnumDeviceInterfacesに失敗しました: エラーコード=" +
+                        std::to_string(lastError));
+    }
+
     return devices;
 }
 

@@ -59,7 +59,15 @@ int main() {
         return 0;
     }
 
-    const size_t selected = static_cast<size_t>(std::stoul(line));
+    size_t selected = 0;
+    try {
+        // 非数値入力(std::invalid_argument)や桁あふれ(std::out_of_range)は
+        // 未捕捉のまま異常終了させず、CLIとしてエラーメッセージを返して終了する。
+        selected = static_cast<size_t>(std::stoul(line));
+    } catch (const std::exception&) {
+        std::cerr << "数値を入力してください。\n";
+        return 1;
+    }
     if (selected >= devices.size()) {
         std::cerr << "番号が範囲外です。\n";
         return 1;
