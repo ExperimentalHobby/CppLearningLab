@@ -10,9 +10,10 @@ USB CDC(Communications Device Class)により作成される仮想COMポート�
 - ボーレート等の設定がUSB CDCでは形式的な意味しか持たない場合があることの理解
 
 ## 採用ライブラリ/ツール
-- Windows API(`CreateFile`等)。35番の`SerialPort`クラスをそのまま使う。
+- Windows API(`CreateFile`等)。35番の`SerialPort`クラスをベースに使う。
   USB CDCデバイスはOSからは通常のCOMポートとして認識されるため、シリアル
-  ポート用のコードがそのまま適用できる。
+  ポート用のコードがそのまま適用できる。なお、レビュー対応で35番との
+  差分(下記「構成と学習ポイントとの対応」を参照)が生じている。
 
 ## 成果物イメージ
 Arduino等をUSB CDCデバイスとして接続し、PC側から文字列を送信して
@@ -37,8 +38,8 @@ cmake --build --preset x64-debug
 
 | 要素 | 内容 | 学習ポイント |
 |---|---|---|
-| `serial_port.h`/`.cpp` | 35番からそのままコピー(`CreateFileW`/`SetCommState`等) | USB CDCデバイスがOSから見て通常のCOMポートと同じAPIで扱えること |
-| `main.cpp`の対話ループ | 1行送信→応答受信を繰り返す | コマンド送信→応答受信という一往復のプロトコル(45番の前段) |
+| `serial_port.h`/`.cpp` | 35番をベースに移植(`CreateFileW`/`SetCommState`等)。レビュー対応で、既に`\\.\`形式で渡された場合の二重前置回避、`Write`/`Read`のサイズが`DWORD`の範囲を超える場合の検証を追加している(35番からの差分) | USB CDCデバイスがOSから見て通常のCOMポートと同じAPIで扱えること |
+| `main.cpp`の対話ループ | 1行送信→応答受信を繰り返す。ボーレート引数は`ParseBaudRate()`で負値・0・末尾のゴミ文字を拒否する | コマンド送信→応答受信という一往復のプロトコル(45番の前段) |
 
 ## 動作確認・環境上の制約
 
