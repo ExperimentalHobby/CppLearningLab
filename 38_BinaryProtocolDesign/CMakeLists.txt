@@ -28,3 +28,6 @@ target_link_libraries(BinaryProtocolServer PRIVATE binproto_common)
 
 add_executable(BinaryProtocolClient src/client.cpp)
 target_link_libraries(BinaryProtocolClient PRIVATE binproto_common)
+
+enable_testing()
+add_subdirectory(test)
