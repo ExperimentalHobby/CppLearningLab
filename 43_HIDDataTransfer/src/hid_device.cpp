@@ -1,0 +1,214 @@
+#include "hid_device.h"
+
+#include <windows.h>
+
+// hidsdi.hが内部でhidpi.hに必要な型(USAGE等)を用意するため、
+// hidpi.hより先にhidsdi.hをincludeする必要がある。
+#include <hidsdi.h>
+#include <hidpi.h>
+#include <setupapi.h>
+
+#include <vector>
+
+// hid.lib/setupapi.libのリンクはCMakeLists.txt(target_link_libraries)側で
+// 行っており、ここで#pragma commentを重ねるとビルド定義が二重管理になる
+// (CLAUDE.mdの「CMakeがビルド定義の唯一の正」の方針とも不整合)ため指定しない。
+
+namespace hid {
+
+namespace {
+
+std::string LastErrorMessage() {
+    return "エラーコード=" + std::to_string(GetLastError());
+}
+
+// SetupDiGetClassDevsWが返すHDEVINFOをスコープ終了時(正常終了・例外の
+// どちらでも)確実にSetupDiDestroyDeviceInfoListで解放するためのRAIIガード
+// (41_USBDeviceEnumerationのDevInfoSetGuardと同じ考え方)。
+class DevInfoSetGuard {
+   public:
+    explicit DevInfoSetGuard(HDEVINFO handle) : handle_(handle) {}
+    ~DevInfoSetGuard() {
+        if (handle_ != INVALID_HANDLE_VALUE) {
+            SetupDiDestroyDeviceInfoList(handle_);
+        }
+    }
+    DevInfoSetGuard(const DevInfoSetGuard&) = delete;
+    DevInfoSetGuard& operator=(const DevInfoSetGuard&) = delete;
+
+    HDEVINFO get() const { return handle_; }
+
+   private:
+    HDEVINFO handle_;
+};
+
+// CreateFileWが返すHANDLEをスコープ終了時(正常終了・例外のどちらでも)
+// 確実にCloseHandleで解放するためのRAIIガード(DevInfoSetGuardと同じ考え方)。
+class HandleGuard {
+   public:
+    explicit HandleGuard(HANDLE handle) : handle_(handle) {}
+    ~HandleGuard() {
+        if (handle_ != INVALID_HANDLE_VALUE) {
+            CloseHandle(handle_);
+        }
+    }
+    HandleGuard(const HandleGuard&) = delete;
+    HandleGuard& operator=(const HandleGuard&) = delete;
+
+    HANDLE get() const { return handle_; }
+
+   private:
+    HANDLE handle_;
+};
+
+// SP_DEVICE_INTERFACE_DETAIL_DATA_Wは可変長構造体(DevicePathが末尾に続く)のため、
+// 必要なバイト数を事前に問い合わせてから確保する。
+std::wstring GetDeviceInterfacePath(HDEVINFO devInfoSet, SP_DEVICE_INTERFACE_DATA& interfaceData) {
+    DWORD requiredSize = 0;
+    SetupDiGetDeviceInterfaceDetailW(devInfoSet, &interfaceData, nullptr, 0, &requiredSize, nullptr);
+    // サイズ問い合わせはバッファ不足(ERROR_INSUFFICIENT_BUFFER)で失敗するのが
+    // 正常系。requiredSize==0だけで判定すると、別の理由で失敗した際に
+    // requiredSizeがたまたま非0になっているケースを見逃しうるため、
+    // GetLastError()を明示的に確認する。
+    const DWORD sizeQueryError = GetLastError();
+    if (sizeQueryError != ERROR_INSUFFICIENT_BUFFER) {
+        throw HidError("SetupDiGetDeviceInterfaceDetailW(サイズ取得)に失敗しました: エラーコード=" +
+                        std::to_string(sizeQueryError));
+    }
+
+    std::vector<BYTE> buffer(requiredSize);
+    auto* detail = reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA_W>(buffer.data());
+    detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
+    if (!SetupDiGetDeviceInterfaceDetailW(devInfoSet, &interfaceData, detail, requiredSize, nullptr,
+                                          nullptr)) {
+        throw HidError("SetupDiGetDeviceInterfaceDetailWの再取得に失敗しました: " + LastErrorMessage());
+    }
+    return detail->DevicePath;
+}
+
+// HIDデバイスの属性・文字列を読み取るためだけに一時的にオープンする。
+// dwDesiredAccessを0(照会のみ)にすることで、マウス/キーボードのように
+// OSのHIDクラスドライバに使用中のデバイスに対しても、排他制御に阻まれず
+// 情報取得できるようにする(実際のレポート読み取り(ReadReports)は
+// GENERIC_READが必要)。
+HANDLE OpenForQuery(const std::wstring& devicePath) {
+    return CreateFileW(devicePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                        0, nullptr);
+}
+
+std::wstring ReadHidString(HANDLE handle, BOOLEAN(WINAPI* getter)(HANDLE, PVOID, ULONG)) {
+    wchar_t buffer[256]{};
+    if (getter(handle, buffer, sizeof(buffer))) {
+        return buffer;
+    }
+    return L"";  // 未対応のデバイスも多いため、失敗しても空文字列で継続する
+}
+
+}  // namespace
+
+std::vector<HidDeviceInfo> EnumerateHidDevices() {
+    GUID hidGuid{};
+    HidD_GetHidGuid(&hidGuid);
+
+    const HDEVINFO devInfoSet =
+        SetupDiGetClassDevsW(&hidGuid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (devInfoSet == INVALID_HANDLE_VALUE) {
+        throw HidError("SetupDiGetClassDevsWに失敗しました: " + LastErrorMessage());
+    }
+    // 以降で例外が発生してもDevInfoSetGuardのデストラクタが確実に
+    // SetupDiDestroyDeviceInfoListを呼ぶため、ハンドルがリークしない。
+    DevInfoSetGuard guard(devInfoSet);
+
+    std::vector<HidDeviceInfo> devices;
+    SP_DEVICE_INTERFACE_DATA interfaceData{};
+    interfaceData.cbSize = sizeof(interfaceData);
+
+    for (DWORD index = 0;
+         SetupDiEnumDeviceInterfaces(guard.get(), nullptr, &hidGuid, index, &interfaceData); ++index) {
+        const std::wstring devicePath = GetDeviceInterfacePath(guard.get(), interfaceData);
+        if (devicePath.empty()) {
+            continue;
+        }
+
+        const HANDLE handle = OpenForQuery(devicePath);
+        if (handle == INVALID_HANDLE_VALUE) {
+            continue;  // 開けないデバイスは読み飛ばす
+        }
+        // info.devicePath代入やReadHidString()内のstd::wstring生成が例外
+        // (std::bad_alloc等)を投げても、HandleGuardのデストラクタが確実に
+        // CloseHandleを呼ぶため、デバイスハンドルがリークしない。
+        HandleGuard handleGuard(handle);
+
+        HidDeviceInfo info;
+        info.devicePath = devicePath;
+
+        HIDD_ATTRIBUTES attributes{};
+        attributes.Size = sizeof(attributes);
+        if (HidD_GetAttributes(handleGuard.get(), &attributes)) {
+            info.vendorId = attributes.VendorID;
+            info.productId = attributes.ProductID;
+        }
+        info.product = ReadHidString(handleGuard.get(), HidD_GetProductString);
+        info.manufacturer = ReadHidString(handleGuard.get(), HidD_GetManufacturerString);
+
+        devices.push_back(std::move(info));
+    }
+
+    // SetupDiEnumDeviceInterfacesは列挙し尽くすとERROR_NO_MORE_ITEMSでfalseを返す
+    // 仕様であり、それ以外のエラーで途中終了した場合と区別するため最後にチェックする。
+    // guardの解放(SetupDiDestroyDeviceInfoList呼び出し)でGetLastError()の値が
+    // 上書きされる前に、ここで読み取っておく。
+    const DWORD lastError = GetLastError();
+    if (lastError != ERROR_NO_MORE_ITEMS) {
+        throw HidError("SetupDiEnumDeviceInterfacesに失敗しました: エラーコード=" +
+                        std::to_string(lastError));
+    }
+
+    return devices;
+}
+
+std::vector<HidReport> ReadReports(const std::wstring& devicePath, int count) {
+    if (count <= 0) {
+        // 公開APIとして呼び出し側の誤り(0以下の指定)を空ベクタで静かに
+        // 見逃さず、その場でHidErrorとして明示的に失敗させる。
+        throw HidError("countは1以上を指定してください: count=" + std::to_string(count));
+    }
+
+    const HANDLE handle = CreateFileW(devicePath.c_str(), GENERIC_READ,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
+                                       nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        throw HidError("デバイスを開けませんでした(他プロセスが排他使用中の可能性があります): " +
+                        LastErrorMessage());
+    }
+    // 以降でstd::vectorの確保等が例外を投げても、HandleGuardのデストラクタが
+    // 確実にCloseHandleを呼ぶため、デバイスハンドルがリークしない。
+    HandleGuard guard(handle);
+
+    // Input Reportのバイト数はデバイスごとに異なるため、HidD_GetPreparsedData+
+    // HidP_GetCapsで実際のサイズを問い合わせる。取得できない場合は無難な既定値を使う。
+    USHORT reportLength = 64;
+    PHIDP_PREPARSED_DATA preparsedData = nullptr;
+    if (HidD_GetPreparsedData(guard.get(), &preparsedData)) {
+        HIDP_CAPS caps{};
+        if (HidP_GetCaps(preparsedData, &caps) == HIDP_STATUS_SUCCESS && caps.InputReportByteLength > 0) {
+            reportLength = caps.InputReportByteLength;
+        }
+        HidD_FreePreparsedData(preparsedData);
+    }
+
+    std::vector<HidReport> reports;
+    std::vector<uint8_t> buffer(reportLength);
+    for (int i = 0; i < count; ++i) {
+        DWORD bytesRead = 0;
+        if (!ReadFile(guard.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr)) {
+            throw HidError("レポートの読み取りに失敗しました: " + LastErrorMessage());
+        }
+        const std::vector<uint8_t> received(buffer.begin(), buffer.begin() + bytesRead);
+        reports.push_back(ParseReport(received));
+    }
+
+    return reports;
+}
+
+}  // namespace hid
