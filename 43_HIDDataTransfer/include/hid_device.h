@@ -34,8 +34,9 @@ struct HidDeviceInfo {
 std::vector<HidDeviceInfo> EnumerateHidDevices();
 
 // devicePathのデバイスをオープンし、Input Reportをcount回読み取って返す。
+// countは1以上を指定すること(0以下の場合はHidErrorを投げる)。
 // オープンに失敗した場合(既に他プロセスが排他的に使用中の場合等)、または
-// 読み取りに失敗した場合はHidErrorを投げる。
+// 読み取りに失敗した場合もHidErrorを投げる。
 std::vector<HidReport> ReadReports(const std::wstring& devicePath, int count);
 
 }  // namespace hid

@@ -10,8 +10,9 @@
 
 #include <vector>
 
-#pragma comment(lib, "hid.lib")
-#pragma comment(lib, "setupapi.lib")
+// hid.lib/setupapi.libのリンクはCMakeLists.txt(target_link_libraries)側で
+// 行っており、ここで#pragma commentを重ねるとビルド定義が二重管理になる
+// (CLAUDE.mdの「CMakeがビルド定義の唯一の正」の方針とも不整合)ため指定しない。
 
 namespace hid {
 
@@ -133,20 +134,23 @@ std::vector<HidDeviceInfo> EnumerateHidDevices() {
         if (handle == INVALID_HANDLE_VALUE) {
             continue;  // 開けないデバイスは読み飛ばす
         }
+        // info.devicePath代入やReadHidString()内のstd::wstring生成が例外
+        // (std::bad_alloc等)を投げても、HandleGuardのデストラクタが確実に
+        // CloseHandleを呼ぶため、デバイスハンドルがリークしない。
+        HandleGuard handleGuard(handle);
 
         HidDeviceInfo info;
         info.devicePath = devicePath;
 
         HIDD_ATTRIBUTES attributes{};
         attributes.Size = sizeof(attributes);
-        if (HidD_GetAttributes(handle, &attributes)) {
+        if (HidD_GetAttributes(handleGuard.get(), &attributes)) {
             info.vendorId = attributes.VendorID;
             info.productId = attributes.ProductID;
         }
-        info.product = ReadHidString(handle, HidD_GetProductString);
-        info.manufacturer = ReadHidString(handle, HidD_GetManufacturerString);
+        info.product = ReadHidString(handleGuard.get(), HidD_GetProductString);
+        info.manufacturer = ReadHidString(handleGuard.get(), HidD_GetManufacturerString);
 
-        CloseHandle(handle);
         devices.push_back(std::move(info));
     }
 
@@ -164,6 +168,12 @@ std::vector<HidDeviceInfo> EnumerateHidDevices() {
 }
 
 std::vector<HidReport> ReadReports(const std::wstring& devicePath, int count) {
+    if (count <= 0) {
+        // 公開APIとして呼び出し側の誤り(0以下の指定)を空ベクタで静かに
+        // 見逃さず、その場でHidErrorとして明示的に失敗させる。
+        throw HidError("countは1以上を指定してください: count=" + std::to_string(count));
+    }
+
     const HANDLE handle = CreateFileW(devicePath.c_str(), GENERIC_READ,
                                        FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
                                        nullptr);
