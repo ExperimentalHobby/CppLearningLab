@@ -23,9 +23,14 @@ if(MSVC)
     target_compile_options(sqlite3 PRIVATE /utf-8)
 endif()
 
-add_executable(PreparedStatementSecurity
-    src/main.cpp
-    src/user_repository.cpp
-)
-target_include_directories(PreparedStatementSecurity PRIVATE include)
-target_link_libraries(PreparedStatementSecurity PRIVATE sqlite3)
+# UserRepositoryをライブラリに分離し、本体の実行ファイルとテスト実行ファイルの
+# 両方からリンクできるようにする。
+add_library(PreparedStatementSecurityCore src/user_repository.cpp)
+target_include_directories(PreparedStatementSecurityCore PUBLIC include)
+target_link_libraries(PreparedStatementSecurityCore PUBLIC sqlite3)
+
+add_executable(PreparedStatementSecurity src/main.cpp)
+target_link_libraries(PreparedStatementSecurity PRIVATE PreparedStatementSecurityCore)
+
+enable_testing()
+add_subdirectory(test)
