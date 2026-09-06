@@ -18,7 +18,6 @@
 #include <cstddef>
 #include <ctime>
 #include <cwchar>
-#include <iterator>
 #include <string>
 
 #include "usb_device_info.h"
