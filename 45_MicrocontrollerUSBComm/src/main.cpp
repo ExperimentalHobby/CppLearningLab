@@ -30,8 +30,17 @@ uint32_t ParseBaudRate(const std::string& text) {
     if (!text.empty() && text.front() == '-') {
         throw std::invalid_argument("ボーレートに負の値は指定できません: " + text);
     }
+    // std::stoulがstd::invalid_argument(非数値)/std::out_of_range(桁あふれ)を
+    // 送出した場合、標準ライブラリ由来の処理系依存なメッセージ("stoul" 等)が
+    // そのまま利用者に見えてしまうため、ここで捕捉してこの関数の責務として
+    // 分かりやすい日本語メッセージに変換する。
     size_t pos = 0;
-    const unsigned long value = std::stoul(text, &pos);
+    unsigned long value = 0;
+    try {
+        value = std::stoul(text, &pos);
+    } catch (const std::exception&) {
+        throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
+    }
     if (pos != text.size()) {
         throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
     }
