@@ -50,6 +50,27 @@ uint32_t ParseBaudRate(const std::string& text) {
     return static_cast<uint32_t>(value);
 }
 
+// SetReadTimeout()が設定するReadIntervalTimeout=MAXDWORD+
+// ReadTotalTimeoutConstant>0という組み合わせは「1バイトでも受信済みなら
+// すぐ返す」特殊な挙動になるため、port.Read()を1回呼んだだけでは改行までの
+// 1行分が揃っている保証が無い(例: "O"だけ返ってくることがある)。改行に
+// 到達するか、それ以上データが来なくなる(空文字列が返る=タイムアウト)まで
+// Read()を繰り返して1行分を組み立てる。
+std::string ReadLine(serial::SerialPort& port) {
+    std::string line;
+    for (;;) {
+        const std::string chunk = port.Read();
+        if (chunk.empty()) {
+            break;  // これ以上データが来ない(タイムアウト)。ここまでの内容を返す。
+        }
+        line += chunk;
+        if (line.find('\n') != std::string::npos) {
+            break;
+        }
+    }
+    return line;
+}
+
 void PrintResponse(const mcu::ResponseResult& response) {
     if (response.raw.empty()) {
         std::cout << "(応答なし、タイムアウトしました)\n";
@@ -107,8 +128,8 @@ int main(int argc, char** argv) {
             }
 
             port.Write(mcu::BuildCommandLine(command));
-            std::string line = port.Read();
-            // Read()はタイムアウトまでに届いた生バイト列を返すため、末尾の
+            std::string line = ReadLine(port);
+            // ReadLine()はタイムアウトまでに届いた生バイト列を返すため、末尾の
             // 改行を取り除いてからParseResponseに渡す。
             while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
                 line.pop_back();

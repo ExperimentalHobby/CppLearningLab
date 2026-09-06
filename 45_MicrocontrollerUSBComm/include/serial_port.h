@@ -31,11 +31,15 @@ struct SerialSettings {
 };
 
 // GetCommStateで実際に読み戻した設定(意図した設定が本当に適用されたことの確認用)。
+// parity/stopBitsはSerialSettingsのParity/1・2形式ではなく、Win32のDCB値
+// (parity: NOPARITY/EVENPARITY/ODDPARITY等、stopBits: ONESTOPBIT/
+// TWOSTOPBITS等)がそのまま入る点に注意(GetCommStateの生の戻り値を
+// そのまま保持しているため)。
 struct AppliedSettings {
     uint32_t baudRate = 0;
     uint8_t dataBits = 0;
-    uint8_t parity = 0;
-    uint8_t stopBits = 0;
+    uint8_t parity = 0;    // Win32のDCB値(NOPARITY等)
+    uint8_t stopBits = 0;  // Win32のDCB値(ONESTOPBIT等)
 };
 
 class SerialPort {
