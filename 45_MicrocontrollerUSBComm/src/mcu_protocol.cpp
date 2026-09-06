@@ -35,7 +35,9 @@ ResponseResult ParseResponse(const std::string& line) {
     }
 
     constexpr const char* kSensorPrefix = "SENSOR:";
-    constexpr size_t kPrefixLength = 7;  // std::char_traits<char>::length(kSensorPrefix)
+    // 固定値7を直書きすると、kSensorPrefixの文字列を変更した際に長さの
+    // 更新漏れでパースが壊れるリスクがあるため、文字列から長さを導出する。
+    constexpr size_t kPrefixLength = std::char_traits<char>::length(kSensorPrefix);
     if (line.compare(0, kPrefixLength, kSensorPrefix) == 0) {
         const std::string valueText = line.substr(kPrefixLength);
         try {
