@@ -13,7 +13,7 @@ struct UsbVidPid {
     uint16_t productId = 0;
 };
 
-// instanceId(例: "USB\VID_046D&PID_C33C&MI_00\..."）から
+// instanceId(例: L"USB\\VID_046D&PID_C33C&MI_00\\..."）から
 // VID(Vendor ID)/PID(Product ID)を抽出する。"VID_XXXX"/"PID_XXXX"
 // (XXXXは16進数4桁、大文字小文字は問わない)が見つからない場合はstd::nulloptを返す。
 std::optional<UsbVidPid> ParseVidPid(const std::wstring& instanceId);
