@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <ctime>
-#include <deque>
 #include <iterator>
 #include <string>
 
