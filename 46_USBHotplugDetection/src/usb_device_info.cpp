@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cwctype>
+#include <exception>
 
 namespace usb {
 
