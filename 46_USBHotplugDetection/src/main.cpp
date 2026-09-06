@@ -14,6 +14,8 @@
 #include <initguid.h>
 #include <usbiodef.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <ctime>
 #include <deque>
 #include <iterator>
@@ -81,13 +83,16 @@ void AppendEvent(const wchar_t* eventName, const std::wstring& devicePath) {
     const std::wstring timeText = CurrentTimeText();
     item.pszText = const_cast<wchar_t*>(timeText.c_str());
     const int row = ListView_InsertItem(g_hwndList, &item);
+    if (row < 0) {
+        return;
+    }
 
     ListView_SetItemText(g_hwndList, row, 1, const_cast<wchar_t*>(eventName));
     ListView_SetItemText(g_hwndList, row, 2, vidPidText);
     ListView_SetItemText(g_hwndList, row, 3, const_cast<wchar_t*>(devicePath.c_str()));
 }
 
-void RegisterForDeviceNotifications(HWND hwnd) {
+bool RegisterForDeviceNotifications(HWND hwnd) {
     DEV_BROADCAST_DEVICEINTERFACE_W filter{};
     filter.dbcc_size = sizeof(filter);
     filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
@@ -96,6 +101,7 @@ void RegisterForDeviceNotifications(HWND hwnd) {
     // DEVICE_NOTIFY_WINDOW_HANDLE: このウィンドウのWndProcへWM_DEVICECHANGEとして
     // 通知を届ける(サービス用のDEVICE_NOTIFY_SERVICE_HANDLEは今回不要)。
     g_deviceNotify = RegisterDeviceNotificationW(hwnd, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
+    return g_deviceNotify != nullptr;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -107,29 +113,48 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
                                          WS_CHILD | WS_VISIBLE | LVS_REPORT, 0, 0, 0, 0, hwnd,
                                          reinterpret_cast<HMENU>(static_cast<INT_PTR>(kIdListView)),
                                          hInstance, nullptr);
+            if (g_hwndList == nullptr) {
+                return -1;
+            }
             ListView_SetExtendedListViewStyle(g_hwndList, LVS_EX_FULLROWSELECT);
             SetupListViewColumns();
 
-            RegisterForDeviceNotifications(hwnd);
+            if (!RegisterForDeviceNotifications(hwnd)) {
+                MessageBoxW(hwnd, L"USBデバイス通知の登録に失敗しました。", kWindowTitle,
+                            MB_OK | MB_ICONWARNING);
+            }
             return 0;
         }
         case WM_SIZE: {
             RECT clientRect{};
             GetClientRect(hwnd, &clientRect);
-            MoveWindow(g_hwndList, 0, 0, clientRect.right, clientRect.bottom, TRUE);
+            if (g_hwndList != nullptr) {
+                MoveWindow(g_hwndList, 0, 0, clientRect.right, clientRect.bottom, TRUE);
+            }
             return 0;
         }
         case WM_DEVICECHANGE: {
             if (wParam != DBT_DEVICEARRIVAL && wParam != DBT_DEVICEREMOVECOMPLETE) {
                 break;  // 接続/切断以外の通知(設定変更等)は本課題の対象外
             }
-            const auto* header = reinterpret_cast<DEV_BROADCAST_HDR*>(lParam);
-            if (header == nullptr || header->dbch_devicetype != DBT_DEVTYP_DEVICEINTERFACE) {
+            const auto* header = reinterpret_cast<const DEV_BROADCAST_HDR*>(lParam);
+            if (header == nullptr || header->dbch_size < sizeof(DEV_BROADCAST_HDR) ||
+                header->dbch_devicetype != DBT_DEVTYP_DEVICEINTERFACE ||
+                header->dbch_size < sizeof(DEV_BROADCAST_DEVICEINTERFACE_W)) {
                 break;
             }
             const auto* deviceInterface = reinterpret_cast<const DEV_BROADCAST_DEVICEINTERFACE_W*>(header);
+            const size_t nameCapacity =
+                (header->dbch_size - offsetof(DEV_BROADCAST_DEVICEINTERFACE_W, dbcc_name)) /
+                sizeof(wchar_t);
+            const auto* nameEnd =
+                std::find(deviceInterface->dbcc_name,
+                          deviceInterface->dbcc_name + nameCapacity, L'\0');
+            if (nameEnd == deviceInterface->dbcc_name + nameCapacity) {
+                break;
+            }
             const wchar_t* eventName = (wParam == DBT_DEVICEARRIVAL) ? L"接続" : L"切断";
-            AppendEvent(eventName, deviceInterface->dbcc_name);
+            AppendEvent(eventName, std::wstring(deviceInterface->dbcc_name, nameEnd));
             return TRUE;
         }
         case WM_DESTROY:
