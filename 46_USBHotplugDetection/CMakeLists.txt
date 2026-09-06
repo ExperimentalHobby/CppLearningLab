@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.20)
 
 project(USBHotplugDetection CXX)
 
+# main.cppがWin32 GUI API(WinMain/HWND/RegisterDeviceNotificationW等)に
+# 直接依存しており非Windows環境では必ずビルド不能なため、原因不明の
+# ビルドエラーになる前にconfigure時点で明示的に失敗させる。
+if(NOT WIN32)
+    message(FATAL_ERROR "46_USBHotplugDetectionはWin32 GUI APIに依存しており、Windows専用です。")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

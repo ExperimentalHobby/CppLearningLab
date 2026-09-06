@@ -23,7 +23,8 @@
 
 #include "usb_device_info.h"
 
-#pragma comment(lib, "comctl32.lib")
+// comctl32.libのリンクはCMakeLists.txt(target_link_libraries)側で行っており、
+// ここで#pragma commentを重ねるとビルド定義が二重管理になるため指定しない。
 
 namespace {
 
