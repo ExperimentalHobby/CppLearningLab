@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <ctime>
+#include <cwchar>
 #include <iterator>
 #include <string>
 
@@ -71,7 +72,9 @@ void AppendEvent(const wchar_t* eventName, const std::wstring& devicePath) {
     const auto vidPid = usb::ParseVidPid(devicePath);
     wchar_t vidPidText[32]{};
     if (vidPid) {
-        wsprintfW(vidPidText, L"VID_%04X PID_%04X", vidPid->vendorId, vidPid->productId);
+        // wsprintfWは出力バッファ長を受け取らずオーバーランを検出できないため、
+        // サイズ指定できるswprintf_sを使う。
+        swprintf_s(vidPidText, L"VID_%04X PID_%04X", vidPid->vendorId, vidPid->productId);
     } else {
         wcscpy_s(vidPidText, L"(不明)");
     }

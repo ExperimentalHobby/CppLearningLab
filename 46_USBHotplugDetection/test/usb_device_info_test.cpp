@@ -4,7 +4,6 @@
 
 using usb::ExtractSerialNumber;
 using usb::ParseVidPid;
-using usb::UsbVidPid;
 
 TEST(ParseVidPidTest, ExtractsVidAndPidFromSimpleInstanceId) {
     const auto result = ParseVidPid(L"USB\\VID_046D&PID_C33C\\197633433932");
