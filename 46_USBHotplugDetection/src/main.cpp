@@ -6,12 +6,17 @@
 // VID/PID(usb_device_info.h、42番と同じロジック)を抽出してリストに表示する。
 //
 // GUID_DEVINTERFACE_USB_DEVICEの実体をこの翻訳単位でリンクするため、
-// usbiodef.hより前にinitguid.hをインクルードする(Windows SDKの定番作法)。
+// initguid.hをusbiodef.hより前にインクルードする(Windows SDKの定番作法)。
+// さらにinitguid.hはwindows.hより前に置く必要がある。windows.hが内部で
+// guiddef.hを先に取り込んでしまうと、そのインクルードガードにより
+// initguid.hによるDEFINE_GUIDマクロの切り替え(実体を定義する版への変更)が
+// 効かなくなり、GUID_DEVINTERFACE_USB_DEVICEが外部参照のまま(未定義)に
+// なってリンクエラーになりうるため。
+#include <initguid.h>
 #include <windows.h>
 
 #include <commctrl.h>
 #include <dbt.h>
-#include <initguid.h>
 #include <usbiodef.h>
 
 #include <algorithm>
