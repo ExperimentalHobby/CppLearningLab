@@ -88,11 +88,19 @@ std::string ComputeSha256Hex(const std::string& content) {
         throw FileTransferError("BCryptCreateHashに失敗しました");
     }
 
-    BCryptHashData(hash, reinterpret_cast<PUCHAR>(const_cast<char*>(content.data())),
-                    static_cast<ULONG>(content.size()), 0);
+    if (BCryptHashData(hash, reinterpret_cast<PUCHAR>(const_cast<char*>(content.data())),
+                        static_cast<ULONG>(content.size()), 0) != 0) {
+        BCryptDestroyHash(hash);
+        BCryptCloseAlgorithmProvider(algorithm, 0);
+        throw FileTransferError("BCryptHashDataに失敗しました");
+    }
 
     std::vector<UCHAR> digest(hashLength);
-    BCryptFinishHash(hash, digest.data(), hashLength, 0);
+    if (BCryptFinishHash(hash, digest.data(), hashLength, 0) != 0) {
+        BCryptDestroyHash(hash);
+        BCryptCloseAlgorithmProvider(algorithm, 0);
+        throw FileTransferError("BCryptFinishHashに失敗しました");
+    }
 
     BCryptDestroyHash(hash);
     BCryptCloseAlgorithmProvider(algorithm, 0);

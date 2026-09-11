@@ -35,6 +35,15 @@ std::string Serialize(const Message& message) {
         throw ProtocolError("ペイロードサイズがuint32_tの範囲を超えています: " +
                             std::to_string(message.payload.size()) + " bytes");
     }
+    // FrameParser側はkMaxPayloadSize(4MiB)を超えるlengthを持つメッセージを
+    // 必ず拒否するため、Serialize()側でも同じ上限を課しておかないと、
+    // 送信側では成功したのに受信側で確実に弾かれるメッセージを作れてしまう
+    // (送受で上限が不一致になる)。
+    if (message.payload.size() > kMaxPayloadSize) {
+        throw ProtocolError("ペイロードサイズが上限(" + std::to_string(kMaxPayloadSize) +
+                            "bytes)を超えています: " + std::to_string(message.payload.size()) +
+                            " bytes");
+    }
     const uint32_t lengthNetworkOrder = htonl(static_cast<uint32_t>(message.payload.size()));
     result.append(reinterpret_cast<const char*>(&lengthNetworkOrder), sizeof(lengthNetworkOrder));
 

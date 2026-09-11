@@ -66,6 +66,18 @@ TEST(SerializeAndFrameParserTest, AssemblesMessageSplitAcrossMultipleFeeds) {
     ASSERT_EQ(received.size(), 1u);
 }
 
+// FrameParserはkMaxPayloadSize(4MiB)を超えるlengthのメッセージを必ず
+// 拒否するため、Serialize()側でも同じ上限を課しておかないと、送信側では
+// 成功したのに受信側で確実に弾かれるメッセージを作れてしまう
+// (送受で上限が不一致になる)。
+TEST(SerializeTest, ThrowsWhenPayloadExceedsMaxPayloadSize) {
+    Message oversized;
+    oversized.command = Command::kFileChunk;
+    oversized.payload = std::string(4 * 1024 * 1024 + 1, 'x');
+
+    EXPECT_THROW(Serialize(oversized), ProtocolError);
+}
+
 TEST(FrameParserTest, ThrowsOnInvalidMagicBytes) {
     // Serializeを経由せず、意図的に壊れたヘッダーを直接与える。
     std::string badHeader = "XXXX";
