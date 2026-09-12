@@ -97,3 +97,25 @@ TEST(ReassembleChunksTest, ConcatenatesInSequenceOrder) {
 TEST(ReassembleChunksTest, ReturnsEmptyStringForNoChunks) {
     EXPECT_EQ(ReassembleChunks({}), "");
 }
+
+// 単純なソートだけでは、再送等で重複したシーケンス番号が来ても連結されて
+// しまい、欠落したシーケンス番号があっても静かに受理されてしまう。
+// 0起点で連続していることを検証し、どちらも例外として検出する。
+TEST(ReassembleChunksTest, ThrowsOnDuplicateSequenceNumber) {
+    std::vector<FileChunkInfo> chunks = {
+        {0, "AA"},
+        {1, "BB"},
+        {1, "BB"},  // 再送等による重複
+    };
+
+    EXPECT_THROW(ReassembleChunks(std::move(chunks)), FileTransferError);
+}
+
+TEST(ReassembleChunksTest, ThrowsOnMissingSequenceNumber) {
+    std::vector<FileChunkInfo> chunks = {
+        {0, "AA"},
+        {2, "CC"},  // 1番が欠落
+    };
+
+    EXPECT_THROW(ReassembleChunks(std::move(chunks)), FileTransferError);
+}

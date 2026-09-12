@@ -91,6 +91,20 @@ TEST(FrameParserTest, ThrowsOnInvalidMagicBytes) {
     EXPECT_THROW(parser.Feed(badHeader), ProtocolError);
 }
 
+// バージョンチェック(受信境界の重要な検証)を緩めてしまっても検出できるよう、
+// 38番と同様に非対応バージョンを拒否するケースをテストしておく。
+TEST(FrameParserTest, ThrowsOnUnsupportedVersion) {
+    std::string badHeader = "MYPB";
+    badHeader += static_cast<char>(99);  // 非対応バージョン
+    badHeader += static_cast<char>(static_cast<uint8_t>(Command::kFileEnd));
+    badHeader += '\0';
+    badHeader += '\0';
+    badHeader += std::string(4, '\0');  // length=0
+
+    FrameParser parser([](const Message&) {});
+    EXPECT_THROW(parser.Feed(badHeader), ProtocolError);
+}
+
 // エンドツーエンドの統合テスト: ファイル内容をチャンク分割してSerializeし、
 // FrameParserで受信・再構成した結果が元の内容と一致することを確認する
 // (実機が無いため、この自己完結テストでプロトコル全体の正しさを示す)。

@@ -22,6 +22,15 @@ namespace {
 
 constexpr size_t kChunkSize = 256;  // 実機のUSB CDC等ではより小さい値が現実的
 
+// パスをそのままプロトコルのfileNameとして送ると、絶対パスの場合に
+// ローカルのディレクトリ構成が漏れるうえ、受信側がこの値をそのまま
+// 出力パスとして使うとパストラバーサル/上書きの問題になりうる。
+// ファイル名部分(ベースネーム)だけを送るようにする。
+std::string ExtractBaseName(const std::string& path) {
+    const size_t pos = path.find_last_of("/\\");
+    return pos == std::string::npos ? path : path.substr(pos + 1);
+}
+
 std::string ReadFileContent(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     if (!file) {
@@ -76,7 +85,7 @@ int main(int argc, char** argv) {
                   << kChunkSize << "バイトずつのチャンクに分割して送信します。\n";
         std::cout << "送信側チェックサム(SHA-256): " << originalChecksum << "\n";
 
-        const std::string stream = BuildTransferStream(path, content);
+        const std::string stream = BuildTransferStream(ExtractBaseName(path), content);
 
         // 受信側: FrameParserでストリームを解析し、kFileStart/kFileChunk/kFileEndを
         // 順に受け取ってファイルを再構成する。
@@ -109,11 +118,25 @@ int main(int argc, char** argv) {
         const std::string reassembled = filexfer::ReassembleChunks(std::move(receivedChunks));
         const std::string reassembledChecksum = filexfer::ComputeSha256Hex(reassembled);
 
+        const bool sizeMatches = startInfo.fileSize == reassembled.size();
+        const bool checksumMatches = startInfo.checksumHex == reassembledChecksum;
+        const bool contentMatches = reassembled == content;
+
         std::cout << "受信側: 転送終了通知=" << (transferEnded ? "受信済み" : "未受信") << "\n";
+        std::cout << "受信側で再構成した内容のサイズ: " << reassembled.size() << "バイト\n";
+        std::cout << "通知されたサイズとの一致: " << (sizeMatches ? "OK" : "NG") << "\n";
         std::cout << "受信側で再構成した内容のチェックサム: " << reassembledChecksum << "\n";
-        std::cout << "通知されたチェックサムとの一致: "
-                   << (startInfo.checksumHex == reassembledChecksum ? "OK" : "NG") << "\n";
-        std::cout << "元ファイルとの内容一致: " << (reassembled == content ? "OK" : "NG") << "\n";
+        std::cout << "通知されたチェックサムとの一致: " << (checksumMatches ? "OK" : "NG") << "\n";
+        std::cout << "元ファイルとの内容一致: " << (contentMatches ? "OK" : "NG") << "\n";
+
+        // 転送終了通知の未受信・サイズ/チェックサム/内容の不一致のいずれかが
+        // 起きていても、このコマンドが終了コード0(成功)を返すと、
+        // スクリプト等の呼び出し元が失敗を見逃してしまう。集約した検証結果を
+        // 終了コードに反映する。
+        if (!transferEnded || !sizeMatches || !checksumMatches || !contentMatches) {
+            std::cerr << "検証に失敗しました(転送が完了していないか、内容が一致しません)。\n";
+            return 1;
+        }
     } catch (const filexfer::FileTransferError& e) {
         std::cerr << "エラー: " << e.what() << "\n";
         return 1;

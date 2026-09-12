@@ -10,7 +10,7 @@ USBデバイス越しにファイルを転送する仕組みを実装する集�
 - 44番のUSB CDC通信または43番のHID通信の上に構築
 
 ## 採用ライブラリ/ツール
-- 38番のバイナリプロトコル(ヘッダー+ペイロード形式、`FrameParser`)+
+- 38番のバイナリプロトコル(ヘッダー+ペイロード形式、`FrameParser`)、
   Windows標準のCNG(BCrypt) APIによるSHA-256チェックサム計算。
 
 ## 成果物イメージ
@@ -57,7 +57,7 @@ cmake --build --preset x64-debug
 | `ComputeSha256Hex()` | Windows CNG(BCrypt)でSHA-256を計算 | チェックサムによる整合性確認 |
 | `EncodeFileStart`/`DecodeFileStart` | ファイル名・サイズ・チェックサムの通知形式 | 転送前のメタデータ交換 |
 | `EncodeFileChunk`/`DecodeFileChunk` | シーケンス番号付きチャンクの形式 | 順序が入れ替わりうる転送への対応 |
-| `ReassembleChunks()` | シーケンス番号順に並べ替えてから結合 | 送達確認・再送を見据えた設計(順不同到着への耐性) |
+| `ReassembleChunks()` | シーケンス番号順に並べ替えてから結合。0起点で連続していない(重複または欠落)場合は例外にする | 送達確認・再送を見据えた設計(順不同到着への耐性、重複・欠落の検出) |
 | `binary_protocol.h`(38番と同じ枠組み) | ヘッダー+ペイロードのフレーミング、`FrameParser`によるストリーミング再構成 | 38番の応用 |
 
 `kAck`/`kNack`は送達確認・再送のための仕組みとして定義しているが、
@@ -68,21 +68,29 @@ cmake --build --preset x64-debug
 
 - `test/file_transfer_test.cpp`(`ComputeSha256Hex`の既知テストベクトルとの
   一致、`SplitIntoChunks`、`EncodeFileStart`/`DecodeFileStart`、
-  `EncodeFileChunk`/`DecodeFileChunk`、`ReassembleChunks`)と
-  `test/binary_protocol_test.cpp`(フレーミング、複数メッセージの一括/分割
-  受信、不正なマジックバイトでの例外、エンドツーエンドの往復確認)が
-  合計20件全てパスすることを確認。
-- 実機確認: 149バイトの小さいファイル(1チャンク)と2130バイトの
-  ファイル(9チャンク、複数の`kFileChunk`メッセージにまたがる)の両方で
-  `USBFileTransferProtocol.exe`を実行し、送信側チェックサムと受信側で
-  再構成した内容のチェックサムが完全に一致することを確認した。
+  `EncodeFileChunk`/`DecodeFileChunk`、`ReassembleChunks`(シーケンス番号の
+  重複・欠落検出を含む))と`test/binary_protocol_test.cpp`(フレーミング、
+  複数メッセージの一括/分割受信、不正なマジックバイト・非対応バージョンでの
+  例外、ペイロードサイズ上限超過の拒否、エンドツーエンドの往復確認)が
+  合計24件全てパスすることを確認。
+- CLI/デモ検証: 本開発環境には実機のUSBデバイスが無いため、実機確認では
+  なく、149バイトの小さいファイル(1チャンク)と2046バイトのファイル
+  (8チャンク、複数の`kFileChunk`メッセージにまたがる)の両方で
+  `USBFileTransferProtocol.exe`(送信側でSerializeしたバイト列を受信側の
+  `FrameParser`へ直接給餌する自己完結デモ)を実行し、送信側チェックサムと
+  受信側で再構成した内容のサイズ・チェックサムが完全に一致し、終了コード0で
+  終わることを確認した。またフルパスを引数に渡した場合でも、プロトコル上の
+  ファイル名にはベースネームのみが使われる(ローカルパスの漏洩を防ぐ)ことを
+  確認した。
 
 ```
-送信側: test_transfer_large.txt (2130バイト) を256バイトずつのチャンクに分割して送信します。
-送信側チェックサム(SHA-256): 6fbb8bb2b6b5477b7aedf82681bd686bf887eaec2dc72c679b3435f9617a9748
-受信側: 転送開始通知(ファイル名=test_transfer_large.txt, サイズ=2130バイト)
+送信側: .../test_transfer_large.txt (2046バイト) を256バイトずつのチャンクに分割して送信します。
+送信側チェックサム(SHA-256): 9e5673ed9a049b19aca84a86ca3188866dccb757e5ec0659c64eb89af103e02e
+受信側: 転送開始通知(ファイル名=test_transfer_large.txt, サイズ=2046バイト)
 受信側: 転送終了通知=受信済み
-受信側で再構成した内容のチェックサム: 6fbb8bb2b6b5477b7aedf82681bd686bf887eaec2dc72c679b3435f9617a9748
+受信側で再構成した内容のサイズ: 2046バイト
+通知されたサイズとの一致: OK
+受信側で再構成した内容のチェックサム: 9e5673ed9a049b19aca84a86ca3188866dccb757e5ec0659c64eb89af103e02e
 通知されたチェックサムとの一致: OK
 元ファイルとの内容一致: OK
 ```

@@ -65,6 +65,17 @@ void CheckUint16Length(const std::string& fieldName, size_t length) {
 }  // namespace
 
 std::string ComputeSha256Hex(const std::string& content) {
+    // BCryptHashDataの入力長はULONG(32bit)で受け取るため、content.size()
+    // (64bit環境ではsize_t)がULONGの範囲(概ね4GiB)を超えると桁あふれし、
+    // ちょうど4GiBの場合は長さ0として渡ってしまい、先頭が切り詰められた
+    // 内容だけをハッシュ化した誤ったチェックサムを返してしまう。
+    // 学習用途の転送デモでそこまで巨大な入力は想定しないため、事前に
+    // 検証して拒否する。
+    if (content.size() > (std::numeric_limits<ULONG>::max)()) {
+        throw FileTransferError("contentのサイズがULONGの範囲を超えています: " +
+                                std::to_string(content.size()) + " bytes");
+    }
+
     BCRYPT_ALG_HANDLE algorithm = nullptr;
     if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0) {
         throw FileTransferError("BCryptOpenAlgorithmProviderに失敗しました");
@@ -185,6 +196,18 @@ std::string ReassembleChunks(std::vector<FileChunkInfo> chunks) {
     std::sort(chunks.begin(), chunks.end(), [](const FileChunkInfo& a, const FileChunkInfo& b) {
         return a.sequenceNumber < b.sequenceNumber;
     });
+
+    // ソートするだけでは、kAck/kNackによる再送を想定した場合に、重複した
+    // シーケンス番号のチャンクが両方連結されてしまったり、欠落した
+    // シーケンス番号があっても静かに受理されてしまう。0起点で連続して
+    // いることを検証し、重複・欠落のどちらも例外として検出する。
+    for (size_t i = 0; i < chunks.size(); ++i) {
+        if (chunks[i].sequenceNumber != static_cast<uint32_t>(i)) {
+            throw FileTransferError(
+                "チャンクのシーケンス番号が連続していません(欠落または重複の可能性): 期待値=" +
+                std::to_string(i) + " 実際=" + std::to_string(chunks[i].sequenceNumber));
+        }
+    }
 
     std::string result;
     for (const FileChunkInfo& chunk : chunks) {
