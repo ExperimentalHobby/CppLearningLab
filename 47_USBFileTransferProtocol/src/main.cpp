@@ -12,7 +12,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <sstream>
 #include <vector>
 
 #include "binary_protocol.h"
@@ -36,15 +35,30 @@ std::string ReadFileContent(const std::string& path) {
     if (!file) {
         throw filexfer::FileTransferError("ファイルを開けませんでした: " + path);
     }
-    std::ostringstream oss;
-    oss << file.rdbuf();
-    return oss.str();
+
+    // oss << file.rdbuf()は、ディスクI/Oエラーで部分データしか読めなかった
+    // 場合でも例外を投げず、その部分データをそのまま返してしまう
+    // (failbit/badbitを見ずに使うと検出漏れになる)。明示的なreadループで
+    // gcount()を確認しながら読み取り、EOF以外の理由で止まった場合は
+    // エラーにする。
+    std::string content;
+    char buffer[8192];
+    while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
+        content.append(buffer, static_cast<size_t>(file.gcount()));
+    }
+    if (!file.eof()) {
+        throw filexfer::FileTransferError("ファイルの読み取り中にI/Oエラーが発生しました: " + path);
+    }
+    return content;
 }
 
 // 送信側: ファイルをkFileStart+複数のkFileChunk+kFileEndに組み立て、
 // Serializeした結果を1本のバイト列として返す(実機ではこれをUSB経由で送る)。
-std::string BuildTransferStream(const std::string& fileName, const std::string& content) {
-    const std::string checksum = filexfer::ComputeSha256Hex(content);
+// checksumは呼び出し側(main())が表示用に計算済みのものを受け取り、
+// ファイルサイズに比例するSHA-256計算を同じcontentに対して二重に
+// 行わないようにする。
+std::string BuildTransferStream(const std::string& fileName, const std::string& content,
+                                 const std::string& checksum) {
     const auto chunks = filexfer::SplitIntoChunks(content, kChunkSize);
 
     std::string stream;
@@ -85,7 +99,7 @@ int main(int argc, char** argv) {
                   << kChunkSize << "バイトずつのチャンクに分割して送信します。\n";
         std::cout << "送信側チェックサム(SHA-256): " << originalChecksum << "\n";
 
-        const std::string stream = BuildTransferStream(ExtractBaseName(path), content);
+        const std::string stream = BuildTransferStream(ExtractBaseName(path), content, originalChecksum);
 
         // 受信側: FrameParserでストリームを解析し、kFileStart/kFileChunk/kFileEndを
         // 順に受け取ってファイルを再構成する。
@@ -93,18 +107,43 @@ int main(int argc, char** argv) {
         filexfer::FileStartInfo startInfo;
         bool transferEnded = false;
 
+        // kFileEndが開始通知やチャンクより前に届いても無条件に受理してしまうと、
+        // 順序が壊れた転送を検知できない。Start→Chunk*→Endの状態を追跡し、
+        // 無効な順序を拒否する。
+        enum class TransferState { kWaitingForStart, kReceivingChunks, kEnded };
+        TransferState state = TransferState::kWaitingForStart;
+
         proto::FrameParser parser([&](const proto::Message& message) {
             switch (message.command) {
                 case proto::Command::kFileStart:
+                    if (state != TransferState::kWaitingForStart) {
+                        throw filexfer::FileTransferError(
+                            "kFileStartが不正な順序で届きました(既に開始済みです)");
+                    }
                     startInfo = filexfer::DecodeFileStart(message.payload);
+                    state = TransferState::kReceivingChunks;
                     std::cout << "受信側: 転送開始通知(ファイル名=" << startInfo.fileName
                               << ", サイズ=" << startInfo.fileSize << "バイト)\n";
                     break;
                 case proto::Command::kFileChunk:
+                    if (state != TransferState::kReceivingChunks) {
+                        throw filexfer::FileTransferError(
+                            "kFileChunkが不正な順序で届きました(開始通知の前、または終了通知の後)");
+                    }
                     receivedChunks.push_back(filexfer::DecodeFileChunk(message.payload));
                     break;
                 case proto::Command::kFileEnd:
+                    if (state != TransferState::kReceivingChunks) {
+                        throw filexfer::FileTransferError(
+                            "kFileEndが不正な順序で届きました(開始通知の前、または既に終了済みです)");
+                    }
+                    if (!message.payload.empty()) {
+                        throw filexfer::FileTransferError(
+                            "kFileEndのペイロードは空である必要があります: " +
+                            std::to_string(message.payload.size()) + " bytes");
+                    }
                     transferEnded = true;
+                    state = TransferState::kEnded;
                     break;
                 default:
                     break;
