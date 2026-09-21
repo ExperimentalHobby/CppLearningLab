@@ -21,11 +21,13 @@ if(MSVC)
     add_compile_options(/EHsc)
 endif()
 
-# コマンド-応答プロトコルの組み立て・解釈ロジック(mcu_protocol)をライブラリに
-# 分離し、本体の実行ファイルとテスト実行ファイルの両方からリンクできるように
-# する。serial_port(実COMポート依存)も同じライブラリに含める。
+# コマンド-応答プロトコルの組み立て・解釈ロジック(mcu_protocol)、応答の
+# 読み取りロジック(line_reader、純粋ロジック)をライブラリに分離し、本体の
+# 実行ファイルとテスト実行ファイルの両方からリンクできるようにする。
+# serial_port(実COMポート依存)も同じライブラリに含める。
 add_library(MicrocontrollerUSBCommCore
     src/mcu_protocol.cpp
+    src/line_reader.cpp
     src/serial_port.cpp
 )
 target_include_directories(MicrocontrollerUSBCommCore PUBLIC include)
