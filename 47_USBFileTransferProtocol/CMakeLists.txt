@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.20)
 
 project(USBFileTransferProtocol CXX)
 
+# file_transfer.cpp/main.cppがWindows標準API(CNG/BCrypt、winsock2、windows.h)に
+# 直接依存しており非Windows環境では必ずビルド不能なため、原因不明のビルド
+# エラーになる前にconfigure時点で明示的に失敗させる。
+if(NOT WIN32)
+    message(FATAL_ERROR "47_USBFileTransferProtocolはWindows標準API(CNG/BCrypt等)に依存しており、Windows専用です。")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
