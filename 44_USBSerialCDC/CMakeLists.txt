@@ -21,8 +21,17 @@ if(MSVC)
     add_compile_options(/EHsc)
 endif()
 
-add_executable(USBSerialCDC
-    src/main.cpp
+# 応答の読み取りロジック(line_reader、純粋ロジック)とシリアルポートの
+# RAIIラッパー(serial_port、Windows API依存)をライブラリに分離し、
+# 本体の実行ファイルとテスト実行ファイルの両方からリンクできるようにする。
+add_library(USBSerialCDCCore
     src/serial_port.cpp
+    src/line_reader.cpp
 )
-target_include_directories(USBSerialCDC PRIVATE include)
+target_include_directories(USBSerialCDCCore PUBLIC include)
+
+add_executable(USBSerialCDC src/main.cpp)
+target_link_libraries(USBSerialCDC PRIVATE USBSerialCDCCore)
+
+enable_testing()
+add_subdirectory(test)

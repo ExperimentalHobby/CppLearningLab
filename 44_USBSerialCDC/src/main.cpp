@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "line_reader.h"
 #include "serial_port.h"
 
 namespace {
@@ -25,14 +26,24 @@ void PrintUsage(const char* programName) {
 // std::stoul()は"-1"のような負号付き文字列も受理し、符号なし整数として
 // 非常に大きい値に変換してしまう(std::invalid_argumentにならない)。
 // ボーレートは正の整数であるべきなので、負号・0・末尾のゴミ文字を
-// 明示的に拒否する。不正な場合はstd::invalid_argumentを投げ、main()側の
-// catch(std::exception&)で使い方誤りとして扱う。
+// 明示的に拒否する(45_MicrocontrollerUSBCommと同じ対応)。不正な場合は
+// std::invalid_argumentを投げ、main()側のcatch(std::exception&)で
+// 使い方誤りとして扱う。
 uint32_t ParseBaudRate(const std::string& text) {
     if (!text.empty() && text.front() == '-') {
         throw std::invalid_argument("ボーレートに負の値は指定できません: " + text);
     }
+    // std::stoulがstd::invalid_argument(非数値)/std::out_of_range(桁あふれ)を
+    // 送出した場合、標準ライブラリ由来の処理系依存なメッセージ("stoul" 等)が
+    // そのまま利用者に見えてしまうため、ここで捕捉してこの関数の責務として
+    // 分かりやすい日本語メッセージに変換する。
     size_t pos = 0;
-    const unsigned long value = std::stoul(text, &pos);
+    unsigned long value = 0;
+    try {
+        value = std::stoul(text, &pos);
+    } catch (const std::exception&) {
+        throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
+    }
     if (pos != text.size()) {
         throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
     }
@@ -72,6 +83,10 @@ int main(int argc, char** argv) {
         std::cout << portName << " に接続しました。文字列を入力してEnterで送信します"
                   << "(空行で終了)。\n";
 
+        // ReadLine()が1回の呼び出しで消費し切れなかった受信データ(次の行の
+        // 先頭部分)を、コマンドをまたいで保持するためのバッファ。
+        std::string pendingBuffer;
+
         std::string line;
         while (std::cout << "> " && std::getline(std::cin, line)) {
             if (line.empty()) {
@@ -79,7 +94,8 @@ int main(int argc, char** argv) {
             }
             port.Write(line + "\n");
 
-            const std::string received = port.Read();
+            const std::string received =
+                serialcli::ReadLine([&port] { return port.Read(); }, pendingBuffer);
             if (received.empty()) {
                 std::cout << "(応答なし、タイムアウトしました)\n";
             } else {
