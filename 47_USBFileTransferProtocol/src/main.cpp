@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
                     if (!message.payload.empty()) {
                         throw filexfer::FileTransferError(
                             "kFileEndのペイロードは空である必要があります: " +
-                            std::to_string(message.payload.size()) + " bytes");
+                            std::to_string(message.payload.size()) + "バイト");
                     }
                     transferEnded = true;
                     state = TransferState::kEnded;

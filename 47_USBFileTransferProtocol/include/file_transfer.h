@@ -47,6 +47,8 @@ FileChunkInfo DecodeFileChunk(const std::string& payload);
 // 受信したチャンク群をシーケンス番号の昇順に並べ替えてから結合し、元の
 // ファイル内容を復元する。USB/TCP転送ではチャンクが送信順と異なる順序で
 // 届く可能性があるため、受信順ではなくシーケンス番号でソートしてから結合する。
+// ソート後にシーケンス番号が0起点で連続していない(欠落または重複している)
+// 場合はFileTransferErrorを投げる。
 std::string ReassembleChunks(std::vector<FileChunkInfo> chunks);
 
 }  // namespace filexfer
