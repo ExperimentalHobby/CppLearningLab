@@ -53,9 +53,10 @@ cmake --build --preset x64-debug
 | `line_reader.h`/`.cpp`(`ReadLine()`) | `SetCommTimeouts`が「1バイトでも受信済みならすぐ返す」設定になっているため、1回の読み取りだけでは改行までの1行分が揃っている保証が無い。改行に到達するかタイムアウトするまで読み続けて1行を組み立てる。1回の読み取りで複数行分届いた場合は未消費分を`pendingBuffer`に残して次回に持ち越し、改行が来ないまま上限(4096バイト)を超えた場合は`ReadLineError`を投げてセッションを終了させる(実際のシリアルポートに依存せず単体テストできるよう、読み取り自体はコールバックとして受け取る) | 1回のI/O呼び出しがアプリケーションレベルの「1メッセージ」を保証しないケースへの対応 |
 | `main.cpp`のメニュー | 選択→送信→受信→表示のループ | PC側アプリケーションの役割 |
 
-`BuildCommandLine`/`ParseResponse`/`ReadLine`はいずれもテキスト処理のみの
-純粋関数(`SerialPort`に依存しない)であり、`test/`でGoogleTestによる単体
-テストを行っている。
+`BuildCommandLine`/`ParseResponse`は純粋関数、`ReadLine`は`pendingBuffer`を
+書き換え引数の`readChunk`コールバック(実運用ではI/Oを行う)を呼び出す
+ロジックだが、いずれも`SerialPort`に直接依存しないテスト可能な形になって
+おり、`test/`でGoogleTestによる単体テストを行っている。
 
 ## 動作確認
 
