@@ -168,7 +168,12 @@ FileStartInfo DecodeFileStart(const std::string& payload) {
     offset += 8;
     const uint16_t checksumLen = ReadUint16(payload, offset);
     offset += 2;
-    if (payload.size() < offset + checksumLen) {
+    // ">="ではなく"!="で比較する。checksum以降に余分なバイトが残っている場合、
+    // 壊れた/仕様外のデータを黙って切り捨てて受理してしまうと、送信側と
+    // 受信側でフレームの解釈が一致しなくなる(送信側は不正なペイロードを
+    // 作れないので、これは主に破損データやプロトコル拡張時の互換性事故を
+    // 検出するためのチェック)。
+    if (payload.size() != offset + checksumLen) {
         throw FileTransferError("kFileStartペイロードのchecksum部分が不正です");
     }
     info.checksumHex = payload.substr(offset, checksumLen);

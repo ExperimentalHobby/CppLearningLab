@@ -55,7 +55,7 @@ cmake --build --preset x64-debug
 |---|---|---|
 | `SplitIntoChunks()` | ファイル内容を固定サイズに分割 | チャンク分割設計 |
 | `ComputeSha256Hex()` | Windows CNG(BCrypt)でSHA-256を計算 | チェックサムによる整合性確認 |
-| `EncodeFileStart`/`DecodeFileStart` | ファイル名・サイズ・チェックサムの通知形式 | 転送前のメタデータ交換 |
+| `EncodeFileStart`/`DecodeFileStart` | ファイル名・サイズ・チェックサムの通知形式。checksum以降に余分なバイトが残っている場合は例外にする | 転送前のメタデータ交換 |
 | `EncodeFileChunk`/`DecodeFileChunk` | シーケンス番号付きチャンクの形式 | 順序が入れ替わりうる転送への対応 |
 | `ReassembleChunks()` | シーケンス番号順に並べ替えてから結合。0起点で連続していない(重複または欠落)場合は例外にする | 送達確認・再送を見据えた設計(順不同到着への耐性、重複・欠落の検出) |
 | `binary_protocol.h`(38番と同じ枠組み) | ヘッダー+ペイロードのフレーミング、`FrameParser`によるストリーミング再構成 | 38番の応用 |
@@ -67,12 +67,13 @@ cmake --build --preset x64-debug
 ## 動作確認
 
 - `test/file_transfer_test.cpp`(`ComputeSha256Hex`の既知テストベクトルとの
-  一致、`SplitIntoChunks`、`EncodeFileStart`/`DecodeFileStart`、
-  `EncodeFileChunk`/`DecodeFileChunk`、`ReassembleChunks`(シーケンス番号の
-  重複・欠落検出を含む))と`test/binary_protocol_test.cpp`(フレーミング、
-  複数メッセージの一括/分割受信、不正なマジックバイト・非対応バージョンでの
-  例外、ペイロードサイズ上限超過の拒否、エンドツーエンドの往復確認)が
-  合計24件全てパスすることを確認。
+  一致、`SplitIntoChunks`、`EncodeFileStart`/`DecodeFileStart`(checksum以降の
+  余分なバイトの拒否を含む)、`EncodeFileChunk`/`DecodeFileChunk`、
+  `ReassembleChunks`(シーケンス番号の重複・欠落検出を含む))と
+  `test/binary_protocol_test.cpp`(フレーミング、複数メッセージの一括/分割
+  受信、不正なマジックバイト・非対応バージョンでの例外、ペイロードサイズ
+  上限超過の拒否、エンドツーエンドの往復確認)が合計25件全てパスすることを
+  確認。
 - CLI/デモ検証: 本開発環境には実機のUSBデバイスが無いため、実機確認では
   なく、149バイトの小さいファイル(1チャンク)と2046バイトのファイル
   (8チャンク、複数の`kFileChunk`メッセージにまたがる)の両方で

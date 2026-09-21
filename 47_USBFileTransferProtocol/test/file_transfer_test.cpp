@@ -65,6 +65,15 @@ TEST(FileStartEncodingTest, DecodeThrowsOnTruncatedPayload) {
     EXPECT_THROW(DecodeFileStart(std::string(1, '\0')), FileTransferError);
 }
 
+// checksum以降に余分なバイトが残っている場合、黙って切り捨てずに拒否する
+// (壊れた/仕様外のデータを含む開始通知を正常受理してしまうと、送信側と
+// 受信側でフレームの解釈が食い違う)。
+TEST(FileStartEncodingTest, DecodeThrowsOnTrailingGarbageAfterChecksum) {
+    const std::string payload = EncodeFileStart("report.txt", 12345, "deadbeef") + "extra";
+
+    EXPECT_THROW(DecodeFileStart(payload), FileTransferError);
+}
+
 TEST(FileChunkEncodingTest, RoundTrips) {
     const std::string payload = EncodeFileChunk(7, "chunk-data");
 
