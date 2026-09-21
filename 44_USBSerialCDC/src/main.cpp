@@ -25,14 +25,24 @@ void PrintUsage(const char* programName) {
 // std::stoul()は"-1"のような負号付き文字列も受理し、符号なし整数として
 // 非常に大きい値に変換してしまう(std::invalid_argumentにならない)。
 // ボーレートは正の整数であるべきなので、負号・0・末尾のゴミ文字を
-// 明示的に拒否する。不正な場合はstd::invalid_argumentを投げ、main()側の
-// catch(std::exception&)で使い方誤りとして扱う。
+// 明示的に拒否する(45_MicrocontrollerUSBCommと同じ対応)。不正な場合は
+// std::invalid_argumentを投げ、main()側のcatch(std::exception&)で
+// 使い方誤りとして扱う。
 uint32_t ParseBaudRate(const std::string& text) {
     if (!text.empty() && text.front() == '-') {
         throw std::invalid_argument("ボーレートに負の値は指定できません: " + text);
     }
+    // std::stoulがstd::invalid_argument(非数値)/std::out_of_range(桁あふれ)を
+    // 送出した場合、標準ライブラリ由来の処理系依存なメッセージ("stoul" 等)が
+    // そのまま利用者に見えてしまうため、ここで捕捉してこの関数の責務として
+    // 分かりやすい日本語メッセージに変換する。
     size_t pos = 0;
-    const unsigned long value = std::stoul(text, &pos);
+    unsigned long value = 0;
+    try {
+        value = std::stoul(text, &pos);
+    } catch (const std::exception&) {
+        throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
+    }
     if (pos != text.size()) {
         throw std::invalid_argument("ボーレートは数値で指定してください: " + text);
     }
@@ -40,6 +50,37 @@ uint32_t ParseBaudRate(const std::string& text) {
         throw std::invalid_argument("ボーレートは1以上を指定してください: " + text);
     }
     return static_cast<uint32_t>(value);
+}
+
+// SetReadTimeout()が設定するReadIntervalTimeout=MAXDWORD+
+// ReadTotalTimeoutConstant>0という組み合わせは「1バイトでも受信済みなら
+// すぐ返す」特殊な挙動になるため、port.Read()を1回呼んだだけでは改行までの
+// 1行分が揃っている保証が無い(例: 応答の一部だけが表示されることがある)。
+// 改行に到達するか、それ以上データが来なくなる(空文字列が返る=タイムアウト)
+// までRead()を繰り返して1行分を組み立てる(45_MicrocontrollerUSBCommと
+// 同じ対応)。1回のRead()で複数行分届いた場合に改行以降のデータを混入
+// させないよう、最初の改行位置で打ち切って返す。また、改行が来ないまま
+// データが途切れず流れ続ける異常系でも無限ループにならないよう、最大行長を
+// 超えたら打ち切る。
+std::string ReadLine(serial::SerialPort& port) {
+    constexpr size_t kMaxLineLength = 4096;
+    std::string line;
+    for (;;) {
+        const std::string chunk = port.Read();
+        if (chunk.empty()) {
+            break;  // これ以上データが来ない(タイムアウト)。ここまでの内容を返す。
+        }
+        line += chunk;
+        const size_t newlinePos = line.find('\n');
+        if (newlinePos != std::string::npos) {
+            line.resize(newlinePos + 1);  // 改行以降のデータは切り捨てる。
+            break;
+        }
+        if (line.size() >= kMaxLineLength) {
+            break;
+        }
+    }
+    return line;
 }
 
 }  // namespace
@@ -79,7 +120,7 @@ int main(int argc, char** argv) {
             }
             port.Write(line + "\n");
 
-            const std::string received = port.Read();
+            const std::string received = ReadLine(port);
             if (received.empty()) {
                 std::cout << "(応答なし、タイムアウトしました)\n";
             } else {
