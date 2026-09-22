@@ -28,13 +28,24 @@ TEST(BlockingQueueTest, PushThenPopReturnsSameValue) {
 // ②Push()し、③直後に完了することを確認する、という順序で検証する。
 TEST(BlockingQueueTest, PopBlocksUntilItemIsPushed) {
     BlockingQueue<int> queue;
+    std::atomic<bool> started{false};
     std::atomic<bool> popped{false};
     int result = 0;
 
     std::thread consumer([&] {
+        started = true;
         result = queue.Pop();
         popped = true;
     });
+
+    // consumerスレッドがまだ実行開始すらしていない段階で「ブロックして
+    // いない(=popped==false)」と判定してしまうと、Pop()が実際には
+    // ブロックしない実装でも「単にスレッドがまだ動いていないだけ」で
+    // テストが偽陽性で通ってしまう。startedがtrueになる(=consumerが
+    // Pop()を呼び出した)まで待ってから、ブロックしているかどうかを判定する。
+    while (!started.load()) {
+        std::this_thread::yield();
+    }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_FALSE(popped.load()) << "Push()前にPop()が返ってしまった(ブロックしていない)";
@@ -85,7 +96,7 @@ TEST(BlockingQueueTest, DeliversAllItemsExactlyOnceAcrossMultipleProducersAndCon
         t.join();
     }
 
-    EXPECT_EQ(received.size(), static_cast<size_t>(kTotalItems));
+    EXPECT_EQ(received.size(), static_cast<std::set<int>::size_type>(kTotalItems));
     for (int i = 0; i < kTotalItems; ++i) {
         EXPECT_TRUE(received.count(i)) << "missing item: " << i;
     }

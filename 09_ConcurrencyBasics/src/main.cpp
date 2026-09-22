@@ -38,8 +38,14 @@ void RunUnsafeCounterDemo() {
     }
 
     const int64_t expected = static_cast<int64_t>(kThreadCount) * kIncrementsPerThread;
-    std::cout << "[UnsafeCounter] 期待値=" << expected << " 実際の値=" << counter.Value();
-    if (counter.Value() != expected) {
+    // counter.Value()自体はjoin後の読み取りであり、UnsafeCounterがスレッド
+    // セーフでないこと自体には変わりないため、出力用と比較用で別々に呼ぶと
+    // 理論上は違う値を読む可能性がある(このデモの範囲ではjoin後の単一
+    // スレッドからの呼び出しなので実際には起きないが、意図を明確にするため
+    // 1回だけ呼んで変数に保持する)。
+    const int64_t actual = counter.Value();
+    std::cout << "[UnsafeCounter] 期待値=" << expected << " 実際の値=" << actual;
+    if (actual != expected) {
         std::cout << " (データ競合により更新が失われました)";
     } else {
         std::cout << " (たまたま一致しましたが、排他制御が無いため保証はありません)";
@@ -64,8 +70,9 @@ void RunThreadSafeCounterDemo() {
     }
 
     const int64_t expected = static_cast<int64_t>(kThreadCount) * kIncrementsPerThread;
-    std::cout << "[ThreadSafeCounter] 期待値=" << expected << " 実際の値=" << counter.Value()
-              << (counter.Value() == expected ? " (一致)" : " (不一致)") << "\n";
+    const int64_t actual = counter.Value();
+    std::cout << "[ThreadSafeCounter] 期待値=" << expected << " 実際の値=" << actual
+              << (actual == expected ? " (一致)" : " (不一致)") << "\n";
 }
 
 // デモ3: BlockingQueue<T>によるproducer-consumerパターン。複数の
