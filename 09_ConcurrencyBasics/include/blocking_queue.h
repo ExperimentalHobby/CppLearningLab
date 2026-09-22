@@ -7,10 +7,12 @@
 // インスタンス化されて初めてコードが実体化するため)。
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <utility>
 
 namespace concurrency {
@@ -31,6 +33,20 @@ class BlockingQueue {
     T Pop() {
         std::unique_lock<std::mutex> lock(mutex_);
         cv_.wait(lock, [this] { return !queue_.empty(); });
+        T value = std::move(queue_.front());
+        queue_.pop_front();
+        return value;
+    }
+
+    // キューが空の間は最大timeoutだけ待ち、それでも値が来なければ
+    // std::nulloptを返す。単体テストでPop()相当の待機が実際に発生した
+    // ことを検証するために用意している(詳細はPop()のコメントを参照)。
+    template <typename Rep, typename Period>
+    std::optional<T> TryPopFor(const std::chrono::duration<Rep, Period>& timeout) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!cv_.wait_for(lock, timeout, [this] { return !queue_.empty(); })) {
+            return std::nullopt;
+        }
         T value = std::move(queue_.front());
         queue_.pop_front();
         return value;

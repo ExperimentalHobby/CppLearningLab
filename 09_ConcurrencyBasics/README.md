@@ -35,7 +35,7 @@ cmake --build --preset x64-debug
 |---|---|---|
 | `include/unsafe_counter.h`(ヘッダーオンリー) | 排他制御なしの`UnsafeCounter`。複数スレッドから`Increment()`するとlost update(更新の欠落)が起きうる | データ競合(race condition)の体験 |
 | `include/thread_safe_counter.h`/`src/thread_safe_counter.cpp` | `std::mutex`+`std::lock_guard`で保護した`ThreadSafeCounter` | `std::mutex`による排他制御 |
-| `include/blocking_queue.h`(ヘッダーオンリーテンプレート、`BlockingQueue<T>`) | `std::mutex`+`std::condition_variable`によるブロッキングキュー。`Pop()`はキューが空の間ブロックし、`Push()`されると起床する | `std::condition_variable`によるスレッド間の同期・通知、producer-consumerパターン |
+| `include/blocking_queue.h`(ヘッダーオンリーテンプレート、`BlockingQueue<T>`) | `std::mutex`+`std::condition_variable`によるブロッキングキュー。`Pop()`はキューが空の間ブロックし、`Push()`されると起床する。`TryPopFor()`は同じ待機条件を`cv_.wait_for()`でタイムアウト付きに待つ版で、単体テストから「実際に待たされたこと」をウォールクロック時間で決定的に検証するために用意している | `std::condition_variable`によるスレッド間の同期・通知、producer-consumerパターン |
 | `src/main.cpp` | ①`UnsafeCounter`での競合実演 ②`ThreadSafeCounter`での正しい集計 ③`BlockingQueue`を使った複数producer/複数consumerのジョブ処理デモ | 全体の統合デモ |
 
 `BlockingQueue<T>`はクラステンプレートのため、08番の`FixedStack`/`FixedQueue`と
@@ -50,16 +50,25 @@ cmake --build --preset x64-debug
   期待値と食い違う(Red)ことを確認した上で、`std::mutex`による保護を
   加えて常に一致する(Green)ことを確認した。
 - `test/blocking_queue_test.cpp`: push→popの往復、`Size()`が空・Push後・
-  Pop後の状態を正しく反映すること、`Pop()`がまだ何も`Push()`されていない
-  間ブロックし、他スレッドが`Push()`した時点で起床すること、複数producer
-  (4スレッド×2000件)×複数consumer(3スレッド)で送信した全8000件が
-  重複・欠落なく届くことを確認。`Pop()`から`pop_front()`を意図的に外した
-  状態でこのテストを実行し、同じ値を繰り返し受信して大半のアイテムが
-  「届いていない」ことになる(Red)ことを確認した上で、正しい実装に戻して
-  全件が一致する(Green)ことを確認した。`Pop()`がブロックしない実装や
-  `Size()`が常に0を返す実装に一時的に差し替えた場合も、対応するテストが
-  それぞれ確実に失敗する(Red)ことを確認済み。
-- `ConcurrencyBasicsTests.exe`実行でテスト5件全てパスすることを複数回
+  Pop後の状態を正しく反映すること、複数producer(4スレッド×2000件)×
+  複数consumer(3スレッド)で送信した全8000件が重複・欠落なく届くことを
+  確認。`Pop()`から`pop_front()`を意図的に外した状態でこのテストを実行し、
+  同じ値を繰り返し受信して大半のアイテムが「届いていない」ことになる
+  (Red)ことを確認した上で、正しい実装に戻して全件が一致する(Green)こと
+  を確認した。`Pop()`がブロックしない実装や`Size()`が常に0を返す実装に
+  一時的に差し替えた場合も、対応するテストがそれぞれ確実に失敗する(Red)
+  ことを確認済み。
+  - `Pop()`のブロック挙動については、「別スレッドで呼び出し、一定時間
+    待っても完了していなければブロックしているとみなす」という判定方法
+    だと、判定側スレッドがconsumerスレッドの実行タイミングに依存して
+    しまい、スケジューリング次第では非ブロッキングな実装でも判定を
+    すり抜けてしまう可能性があった(レビュー指摘)。判定を行うのと同じ
+    スレッドの中で待機するタイムアウト付きの`TryPopFor()`を追加し、
+    ウォールクロック時間の実測で「指定時間分、実際に待たされたこと」を
+    決定的に検証する設計に変更した。`TryPopFor()`の待機自体を即座に
+    返す(=待たない)実装に一時的に差し替えて、このテストが確実に失敗
+    する(Red)ことも確認済み。
+- `ConcurrencyBasicsTests.exe`実行でテスト7件全てパスすることを複数回
   (連続実行しても常にパスすること)確認。
 - `ConcurrencyBasics.exe`実行で、`UnsafeCounter`は期待値(800000)より
   少ない値になること(データ競合の実演。タイミング次第でまれに一致する

@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <thread>
 #include <vector>
@@ -38,42 +39,65 @@ TEST(BlockingQueueTest, SizeReflectsEmptyPushAndPopStates) {
     EXPECT_EQ(queue.Size(), 0u);
 }
 
-// Pop()はキューが空の間ブロックし、別スレッドがPush()した時点で起床して
-// 値を返すことを確認する。producer側をsleepさせてからPush()するだけでは、
-// スケジューリング次第でPush()がPop()より先に実行されてしまい、
-// 「Pop()が即座に返っても(実はブロックしていなくても)テストが通る」
-// 可能性がある。そこでPop()を呼ぶ側を別スレッドにし、①一定時間待っても
-// そのスレッドが完了していない(=ブロックしている)ことを先に確認してから
-// ②Push()し、③直後に完了することを確認する、という順序で検証する。
-TEST(BlockingQueueTest, PopBlocksUntilItemIsPushed) {
+// Pop()はキューが空の間ブロックすることを確認したい。しかし「別スレッドで
+// Pop()を呼び、一定時間待っても完了していなければブロックしているとみなす」
+// という判定方法は、判定側スレッドがconsumerスレッドの実行タイミングに
+// 依存してしまう。consumerスレッドが「Pop()を呼び出した」ことを示す
+// フラグを立てた直後にOSにスケジューリングを奪われ、その間にメイン
+// スレッド側の判定が済んでしまった場合、非ブロッキングな実装であっても
+// 判定をすり抜けてしまう可能性がある(PR #97のCopilotレビュー指摘)。
+//
+// このレースを構造的に無くすため、待機自体を判定を行うのと同じ
+// スレッドの中で行うTryPopFor()(内部的にはPop()と同じcv_.wait系の
+// 待機ロジックを使う)を用い、ウォールクロック時間の実測で
+// 「指定時間分、実際に待たされたこと」を検証する。他スレッドの
+// スケジューリングに依存しないため、判定は決定的になる。
+TEST(BlockingQueueTest, TryPopForActuallyWaitsWhenQueueIsEmpty) {
     BlockingQueue<int> queue;
-    std::atomic<bool> started{false};
-    std::atomic<bool> popped{false};
-    int result = 0;
+    constexpr auto kTimeout = std::chrono::milliseconds(100);
 
-    std::thread consumer([&] {
-        started = true;
-        result = queue.Pop();
-        popped = true;
+    const auto start = std::chrono::steady_clock::now();
+    const std::optional<int> result = queue.TryPopFor(kTimeout);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    EXPECT_FALSE(result.has_value());
+    // タイマーの粒度による多少の前倒しは許容しつつ、"即座に返っていない"
+    // ことを確認する(即座に返る実装ならelapsedはkTimeoutよりずっと短くなる)。
+    EXPECT_GE(elapsed, kTimeout - std::chrono::milliseconds(20))
+        << "TryPopFor()が指定時間待たずに即座に返ってしまった(ブロックしていない)";
+}
+
+// TryPopFor()はタイムアウト前にPush()されれば、待機を打ち切って正しい
+// 値を返すことを確認する。
+TEST(BlockingQueueTest, TryPopForReturnsValueWhenPushedWithinTimeout) {
+    BlockingQueue<int> queue;
+
+    std::thread producer([&queue] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        queue.Push(99);
     });
 
-    // consumerスレッドがまだ実行開始すらしていない段階で「ブロックして
-    // いない(=popped==false)」と判定してしまうと、Pop()が実際には
-    // ブロックしない実装でも「単にスレッドがまだ動いていないだけ」で
-    // テストが偽陽性で通ってしまう。startedがtrueになる(=consumerが
-    // Pop()を呼び出した)まで待ってから、ブロックしているかどうかを判定する。
-    while (!started.load()) {
-        std::this_thread::yield();
-    }
+    const std::optional<int> result = queue.TryPopFor(std::chrono::milliseconds(500));
+    producer.join();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    EXPECT_FALSE(popped.load()) << "Push()前にPop()が返ってしまった(ブロックしていない)";
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, 99);
+}
 
-    queue.Push(7);
-    consumer.join();
+// Pop()自体も、別スレッドから遅れてPush()された値を正しく受け取れる
+// ことを確認する(ブロック性自体は上記TryPopForのテストで検証済み。
+// Pop()とTryPopFor()は同じ待機条件を共有しているため、Pop()についても
+// 同様にブロックすることの傍証になる)。
+TEST(BlockingQueueTest, PopReturnsValuePushedFromAnotherThread) {
+    BlockingQueue<int> queue;
 
-    EXPECT_TRUE(popped.load());
-    EXPECT_EQ(result, 7);
+    std::thread producer([&queue] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        queue.Push(7);
+    });
+
+    EXPECT_EQ(queue.Pop(), 7);
+    producer.join();
 }
 
 // 複数producer×複数consumerで、送信した全アイテムが重複・欠落なく
