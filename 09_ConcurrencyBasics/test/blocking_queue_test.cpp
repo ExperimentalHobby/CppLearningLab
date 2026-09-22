@@ -20,18 +20,30 @@ TEST(BlockingQueueTest, PushThenPopReturnsSameValue) {
 }
 
 // Pop()はキューが空の間ブロックし、別スレッドがPush()した時点で起床して
-// 値を返すことを確認する。別スレッド側で意図的に少し待ってからPush()する
-// ことで、「先にPop()が呼ばれて待機状態に入っている」状況を作る。
+// 値を返すことを確認する。producer側をsleepさせてからPush()するだけでは、
+// スケジューリング次第でPush()がPop()より先に実行されてしまい、
+// 「Pop()が即座に返っても(実はブロックしていなくても)テストが通る」
+// 可能性がある。そこでPop()を呼ぶ側を別スレッドにし、①一定時間待っても
+// そのスレッドが完了していない(=ブロックしている)ことを先に確認してから
+// ②Push()し、③直後に完了することを確認する、という順序で検証する。
 TEST(BlockingQueueTest, PopBlocksUntilItemIsPushed) {
     BlockingQueue<int> queue;
+    std::atomic<bool> popped{false};
+    int result = 0;
 
-    std::thread producer([&queue] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        queue.Push(7);
+    std::thread consumer([&] {
+        result = queue.Pop();
+        popped = true;
     });
 
-    EXPECT_EQ(queue.Pop(), 7);
-    producer.join();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    EXPECT_FALSE(popped.load()) << "Push()前にPop()が返ってしまった(ブロックしていない)";
+
+    queue.Push(7);
+    consumer.join();
+
+    EXPECT_TRUE(popped.load());
+    EXPECT_EQ(result, 7);
 }
 
 // 複数producer×複数consumerで、送信した全アイテムが重複・欠落なく

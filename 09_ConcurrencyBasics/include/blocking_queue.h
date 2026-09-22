@@ -8,6 +8,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <cstddef>
 #include <deque>
 #include <mutex>
 #include <utility>
@@ -35,7 +36,7 @@ class BlockingQueue {
         return value;
     }
 
-    size_t Size() const {
+    std::size_t Size() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return queue_.size();
     }
