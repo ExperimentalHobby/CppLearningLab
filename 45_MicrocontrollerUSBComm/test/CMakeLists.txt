@@ -7,5 +7,5 @@ target_include_directories(gtest PRIVATE ${GOOGLETEST_DIR})
 add_library(gtest_main STATIC ${GOOGLETEST_DIR}/src/gtest_main.cc)
 target_link_libraries(gtest_main PUBLIC gtest)
 
-add_executable(MicrocontrollerUSBCommTests mcu_protocol_test.cpp)
+add_executable(MicrocontrollerUSBCommTests mcu_protocol_test.cpp line_reader_test.cpp)
 target_link_libraries(MicrocontrollerUSBCommTests PRIVATE MicrocontrollerUSBCommCore gtest_main)

@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "line_reader.h"
 #include "mcu_protocol.h"
 #include "serial_port.h"
 
@@ -50,37 +51,6 @@ uint32_t ParseBaudRate(const std::string& text) {
     return static_cast<uint32_t>(value);
 }
 
-// SetReadTimeout()が設定するReadIntervalTimeout=MAXDWORD+
-// ReadTotalTimeoutConstant>0という組み合わせは「1バイトでも受信済みなら
-// すぐ返す」特殊な挙動になるため、port.Read()を1回呼んだだけでは改行までの
-// 1行分が揃っている保証が無い(例: "O"だけ返ってくることがある)。改行に
-// 到達するか、それ以上データが来なくなる(空文字列が返る=タイムアウト)まで
-// Read()を繰り返して1行分を組み立てる。
-// 1回のRead()で複数行分届いた場合(例:"OK\nSENSOR:1\n")に改行以降の
-// データを混入させないよう、最初の改行位置で打ち切って返す。また、
-// 改行が来ないままデータが途切れず流れ続ける異常系でも無限ループに
-// ならないよう、最大行長を超えたら打ち切る(不正な応答として扱われる)。
-std::string ReadLine(serial::SerialPort& port) {
-    constexpr size_t kMaxLineLength = 4096;
-    std::string line;
-    for (;;) {
-        const std::string chunk = port.Read();
-        if (chunk.empty()) {
-            break;  // これ以上データが来ない(タイムアウト)。ここまでの内容を返す。
-        }
-        line += chunk;
-        const size_t newlinePos = line.find('\n');
-        if (newlinePos != std::string::npos) {
-            line.resize(newlinePos + 1);  // 改行以降のデータは切り捨てる。
-            break;
-        }
-        if (line.size() >= kMaxLineLength) {
-            break;
-        }
-    }
-    return line;
-}
-
 void PrintResponse(const mcu::ResponseResult& response) {
     if (response.raw.empty()) {
         std::cout << "(応答なし、タイムアウトしました)\n";
@@ -118,6 +88,10 @@ int main(int argc, char** argv) {
         port.SetReadTimeout(3000);
         std::cout << portName << " に接続しました。\n";
 
+        // ReadLine()が1回の呼び出しで消費し切れなかった受信データ(次の行の
+        // 先頭部分)を、コマンドをまたいで保持するためのバッファ。
+        std::string pendingBuffer;
+
         for (;;) {
             PrintMenu();
             std::string choice;
@@ -138,7 +112,7 @@ int main(int argc, char** argv) {
             }
 
             port.Write(mcu::BuildCommandLine(command));
-            std::string line = ReadLine(port);
+            std::string line = serialcli::ReadLine([&port] { return port.Read(); }, pendingBuffer);
             // ReadLine()はタイムアウトまでに届いた生バイト列を返すため、末尾の
             // 改行を取り除いてからParseResponseに渡す。
             while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
