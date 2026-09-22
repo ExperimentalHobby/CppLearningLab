@@ -80,3 +80,25 @@ TEST(ReadLineTest, ThrowsWhenLineExceedsMaxLengthWithoutNewline) {
 
     EXPECT_THROW(ReadLine(reader, pending), ReadLineError);
 }
+
+// 改行を含むチャンクは、find('\n')が改行の存在を最優先で検出するため、
+// 「改行が見つからない場合のみ上限を見る」実装だと上限チェックを回避できて
+// しまう(例:5000バイトの改行なしデータの直後に'\n'が1つ来た場合)。
+// 改行が見つかった場合でも、その1行自体の長さを上限と照合する必要がある
+// (PR #93のCopilotレビュー指摘)。
+TEST(ReadLineTest, ThrowsWhenLineWithNewlineExceedsMaxLength) {
+    std::string pending;
+    auto reader = MakeReader({std::string(5000, 'X') + "\n"});  // 改行はあるが長すぎる1行
+
+    EXPECT_THROW(ReadLine(reader, pending), ReadLineError);
+}
+
+// 上限チェックは「最初の1行」の長さに対して行うべきで、その後ろに
+// たまたま大量の(次回以降処理する)データが控えていても、今回返す行が
+// 短ければ例外にしてはいけない。
+TEST(ReadLineTest, AllowsShortFirstLineEvenWithLargePendingRemainder) {
+    std::string pending;
+    auto reader = MakeReader({"OK\n" + std::string(5000, 'Y')});  // 短い1行+長い残り
+
+    EXPECT_EQ(ReadLine(reader, pending), "OK\n");
+}
