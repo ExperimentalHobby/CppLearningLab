@@ -19,6 +19,25 @@ TEST(BlockingQueueTest, PushThenPopReturnsSameValue) {
     EXPECT_EQ(queue.Pop(), 42);
 }
 
+// Size()は08番のFixedQueueTest.StartsEmptyと同様、空・Push後・Pop後の
+// 状態を単体で検証する(Push/Popの戻り値だけを見るテストでは、Size()の
+// 実装やロックが壊れていても検出できないため)。
+TEST(BlockingQueueTest, SizeReflectsEmptyPushAndPopStates) {
+    BlockingQueue<int> queue;
+
+    EXPECT_EQ(queue.Size(), 0u);
+
+    queue.Push(1);
+    queue.Push(2);
+    EXPECT_EQ(queue.Size(), 2u);
+
+    queue.Pop();
+    EXPECT_EQ(queue.Size(), 1u);
+
+    queue.Pop();
+    EXPECT_EQ(queue.Size(), 0u);
+}
+
 // Pop()はキューが空の間ブロックし、別スレッドがPush()した時点で起床して
 // 値を返すことを確認する。producer側をsleepさせてからPush()するだけでは、
 // スケジューリング次第でPush()がPop()より先に実行されてしまい、

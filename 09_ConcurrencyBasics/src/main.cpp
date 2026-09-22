@@ -95,7 +95,7 @@ void RunBlockingQueueDemo() {
         });
     }
 
-    // 「Pop()する前にthis回のジョブ枠を予約できたか」をfetch_add()の戻り値
+    // 「Pop()する前に1回分のジョブ枠を予約できたか」をfetch_add()の戻り値
     // (加算前の値)で判定する。processedCount.Value() < kTotalJobsのような
     // 判定と実際のPop()の間に別スレッドが割り込む余地があると、既に全ジョブ
     // が払い出された後にPop()を呼んでしまい、以降Push()されないキューに
