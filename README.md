@@ -1,7 +1,7 @@
 # C++ Learning Lab
 
 C++の基礎からGUIプログラミング・DB連携・通信・USBデバイス制御までを段階的に学ぶための
-学習リポジトリです。全40課題をルート直下にフラットに配置し、番号帯でカテゴリを表現しています。
+学習リポジトリです。全47課題をルート直下にフラットに配置し、番号帯でカテゴリを表現しています。
 各課題は独立したフォルダになっており、フォルダ内の `README.md` に目的・学習ポイント・
 推奨ライブラリ・成果物イメージを記載しています。
 
@@ -17,7 +17,7 @@ C++の基礎からGUIプログラミング・DB連携・通信・USBデバイス
 | 21-27 | DB連携 (Database) | 7 | SQLite/MySQL接続、CRUD、トランザクション、ORM |
 | 31-38 | 通信 (Networking) | 8 | TCP/UDP、HTTP、WebSocket、シリアル通信 |
 | 41-47 | USB | 7 | USBデバイス列挙、HID通信、ファイル転送 |
-| 51-58 | 並行処理 (Concurrency) | 1 | atomic、future/async、スレッドプール、リーダーライタロック、デッドロック、ロックフリー、キャンセル、並列アルゴリズム |
+| 51-58 | 並行処理 (Concurrency) | 8 | atomic、future/async、スレッドプール、リーダーライタロック、デッドロック、ロックフリー、キャンセル、並列アルゴリズム |
 
 ## 課題一覧
 
@@ -84,6 +84,13 @@ C++の基礎からGUIプログラミング・DB連携・通信・USBデバイス
 | # | フォルダ | 概要 |
 |---|----------|------|
 | 51 | [51_AtomicOperations](51_AtomicOperations/README.md) | std::atomicとmemory_orderの基礎 |
+| 52 | [52_FuturesAndAsync](52_FuturesAndAsync/README.md) | std::future/std::asyncによる非同期処理 |
+| 53 | [53_ThreadPool](53_ThreadPool/README.md) | 固定数ワーカーとタスクキューによるスレッドプール |
+| 54 | [54_ReaderWriterLock](54_ReaderWriterLock/README.md) | std::shared_mutexによる読み書きロック |
+| 55 | [55_DeadlockAvoidance](55_DeadlockAvoidance/README.md) | デッドロックの発生と回避(scoped_lock/timed_mutex) |
+| 56 | [56_LockFreeStack](56_LockFreeStack/README.md) | compare_exchangeによるロックフリースタック(Treiber stack) |
+| 57 | [57_ThreadCancellation](57_ThreadCancellation/README.md) | 協調的キャンセル・タイムアウト処理 |
+| 58 | [58_ParallelAlgorithms](58_ParallelAlgorithms/README.md) | std::execution実行ポリシーによる並列アルゴリズム |
 
 ## 進め方の目安
 
