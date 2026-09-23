@@ -3,6 +3,12 @@
 namespace async_ops {
 
 ThreadPool::ThreadPool(size_t numThreads) {
+    if (numThreads == 0) {
+        // ワーカーが1つも起動されないと、Enqueue()したタスクのfutureが
+        // 永久に完了しなくなる(WorkerLoop()を動かす者がいないため)ので、
+        // 生成前に拒否する。
+        throw std::invalid_argument("ThreadPoolはnumThreads>=1で構築する必要があります");
+    }
     for (size_t i = 0; i < numThreads; ++i) {
         workers_.emplace_back([this] { WorkerLoop(); });
     }

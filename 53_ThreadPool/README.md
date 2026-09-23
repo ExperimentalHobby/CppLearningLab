@@ -68,7 +68,13 @@ cmake --build --preset x64-debug
     戻してGreen化した。
   - `EnqueueAfterShutdownThrows`: `Shutdown()`後の`Enqueue()`が例外を送出することを
     確認。
-- `ThreadPoolTests.exe`実行でテスト5件全てパスすることを複数回
+  - `ConstructingWithZeroWorkersThrows`: `numThreads==0`だとワーカーが1つも
+    起動されず、投入したタスクの`future`が誰にも処理されず永久に完了しない
+    (`Shutdown()`で待っても終わらない)ため、コンストラクタの時点で
+    `std::invalid_argument`を送出して拒否することを確認(Copilotレビュー指摘、
+    ガードを実装する前は例外が送出されない(Red)ことを確認した上で、
+    `numThreads==0`を拒否するガードを追加してGreen化した)。
+- `ThreadPoolTests.exe`実行でテスト6件全てパスすることを複数回
   (連続5回実行しても常にパスすること)確認。
 - `ThreadPool.exe`実行で、4ワーカーに投入した10件のタスク全てが正しい結果
   (0^2〜9^2)で完了し、終了コード0で終わることを確認した。

@@ -85,3 +85,11 @@ TEST(ThreadPoolTest, EnqueueAfterShutdownThrows) {
 
     EXPECT_THROW(pool.Enqueue([] { return 0; }), std::runtime_error);
 }
+
+// numThreads==0だとワーカーが1つも起動されず、Enqueue()したタスクの
+// futureが永久に完了しない(WorkerLoop()が誰も動かないため)。この事態を
+// 未然に防ぐため、コンストラクタの時点で拒否することを確認する
+// (Copilotレビュー指摘)。
+TEST(ThreadPoolTest, ConstructingWithZeroWorkersThrows) {
+    EXPECT_THROW(ThreadPool(0), std::invalid_argument);
+}
