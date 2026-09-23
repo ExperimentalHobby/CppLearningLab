@@ -9,8 +9,29 @@ ThreadPool::ThreadPool(size_t numThreads) {
         // 生成前に拒否する。
         throw std::invalid_argument("ThreadPoolはnumThreads>=1で構築する必要があります");
     }
-    for (size_t i = 0; i < numThreads; ++i) {
-        workers_.emplace_back([this] { WorkerLoop(); });
+    try {
+        for (size_t i = 0; i < numThreads; ++i) {
+            workers_.emplace_back([this] { WorkerLoop(); });
+        }
+    } catch (...) {
+        // 一部のワーカーだけ起動済みの状態でstd::threadの構築が失敗すると
+        // (OSのスレッド/リソース上限到達等)、このオブジェクト自体の構築が
+        // 失敗するため~ThreadPool()は呼ばれず、workers_(既にjoinable()な
+        // std::threadを含む)だけがそのまま破棄される。std::threadの
+        // デストラクタはjoinable()な状態で呼ばれるとstd::terminate()を
+        // 呼んでしまうため、ここで明示的にstop_を立てて起動済みの
+        // ワーカーを全てjoinしてから例外を再送出する。
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stop_ = true;
+        }
+        cv_.notify_all();
+        for (auto& worker : workers_) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+        throw;
     }
 }
 

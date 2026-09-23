@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -13,20 +15,29 @@ using namespace async_ops;
 // 投入する。プールが本当に2スレッドを並行実行していなければ、片方が
 // 完了するまでもう片方が開始できず、以下の「両方が開始するまで待つ」ロジックが
 // タイムアウトしてfalseを返す。
+//
+// startedCountをポーリングする実装(1msスリープでスピンウェイト)だと、
+// 高負荷なCI環境ではスケジューリング遅延で誤って失敗しうる一方、
+// 単一ワーカーしか無い(=バグがある)場合は毎回タイムアウト分をまるごと
+// 待たされてしまう(Copilotレビュー指摘)。condition_variableで
+// 「値が変わったら即座に起床する」設計にすることで、成功時は
+// ポーリング間隔による遅延なく即座に検出でき、失敗時も同じタイムアウトで
+// 確実に打ち切れる。
 TEST(ThreadPoolTest, ConstructsWithFixedWorkerCountAndRunsTasksConcurrently) {
     ThreadPool pool(2);
-    std::atomic<int> startedCount{0};
+    std::mutex mutex;
+    std::condition_variable cv;
+    int startedCount = 0;
 
-    auto task = [&startedCount]() -> bool {
-        startedCount.fetch_add(1);
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-        while (startedCount.load() < 2) {
-            if (std::chrono::steady_clock::now() > deadline) {
-                return false;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    auto task = [&] {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            ++startedCount;
         }
-        return true;
+        cv.notify_all();
+
+        std::unique_lock<std::mutex> lock(mutex);
+        return cv.wait_for(lock, std::chrono::seconds(1), [&] { return startedCount >= 2; });
     };
 
     std::future<bool> result1 = pool.Enqueue(task);
