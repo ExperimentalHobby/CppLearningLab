@@ -10,27 +10,54 @@
 
 using namespace concurrency;
 
-// 2スレッドを同時に開始させ、大きい値のstoreが先に終わった後に小さい値
-// のstoreが上書きしてしまわないことを確認する(TOCTOUの回帰テスト)。
-// load()→比較・store()を分割した素朴な実装だと、大きい値(800)を
-// storeした側より後に、既に古いcurrentを読んでいた側が小さい値(200)を
-// storeしてしまい上書きされる欠陥を実際に確認した上で、
-// compare_exchange_weakループに置き換えて解消した。
+// afterLoadHookを使い、以下の順序を決定的に強制した上で、大きい値(800)を
+// 渡した側と小さい値(200)を渡した側を競合させ、最終的に大きい方(800)が
+// 残ることを確認する(TOCTOUの回帰テスト)。
+//   1. big/smallの両方がload()を完了する(=両方とも古い値-1を読む)
+//   2. bigが先にcompare/storeへ進み、800をstoreし終える
+//   3. bigのstore完了を確認してから、smallが(手順1で読んだ古いcurrent=-1の
+//      ままで)compare/storeへ進む
+//
+// 単に開始タイミングを揃えるだけのstartフラグでは、両方がload()を完了する
+// 前にどちらかがstoreまで進んでしまう順序も、bigとsmallのstoreの前後関係も
+// 制御できておらず、壊れたload→比較→store実装でも偶然「big側のstoreが
+// small側のstoreより後」の順序になればテストが通ってしまい、TOCTOU回帰を
+// 確実には検出できなかった(Copilotレビュー指摘)。上記の2段階の同期に
+// より、bigのstoreが完了した後にsmallが古いcurrentのままstoreを試みる、
+// という欠陥が確実に顕在化する順序を100%決定的に再現する。
+//
+// load()→比較・store()を分割した素朴な実装だと、この決定的な順序下で
+// 大きい値(800)をstoreした後に、古いcurrent(-1)を読んでいたsmallが
+// 小さい値(200)を無条件にstoreしてしまい上書きされる欠陥を実際に確認した
+// 上で、compare_exchange_weakループに置き換えて解消した(小さい値を読んで
+// いた側のCASは、targetが既に800に変わっているため失敗し、currentが800に
+// 更新された上で200>800がfalseとなり、上書きされずに済む)。
 TEST(AtomicMaxTest, DoesNotRegressWhenTwoThreadsRaceSimultaneously) {
     std::atomic<int> target{-1};
-    std::atomic<bool> start{false};
+    std::atomic<int> loadedCount{0};
+    std::atomic<bool> bigStored{false};
 
-    std::thread big([&target, &start] {
-        while (!start.load()) {
+    const auto bigHook = [&loadedCount] {
+        loadedCount.fetch_add(1);
+        while (loadedCount.load() < 2) {
         }
-        UpdateMaxAtomic(target, 800);
-    });
-    std::thread small([&target, &start] {
-        while (!start.load()) {
+        // bigはここから即座にcompare/storeへ進む(待たない)。
+    };
+    const auto smallHook = [&loadedCount, &bigStored] {
+        loadedCount.fetch_add(1);
+        while (loadedCount.load() < 2) {
         }
-        UpdateMaxAtomic(target, 200);
+        // bigのstoreが完了するまで待ってから、(手順1で読んだ)古い
+        // currentのままcompare/storeへ進む。
+        while (!bigStored.load()) {
+        }
+    };
+
+    std::thread big([&target, &bigHook, &bigStored] {
+        UpdateMaxAtomic(target, 800, bigHook);
+        bigStored.store(true);
     });
-    start.store(true);
+    std::thread small([&target, &smallHook] { UpdateMaxAtomic(target, 200, smallHook); });
     big.join();
     small.join();
 

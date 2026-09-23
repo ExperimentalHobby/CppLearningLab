@@ -41,18 +41,26 @@ cmake --build --preset x64-debug
 - `test/atomic_counter_test.cpp`: 8スレッド×100000回の`Increment()`後、合計が
   期待値(800000)と一致することを確認。`Increment()`を`load()`→加算→`store()`に
   意図的に分割した実装(fetch_add()を使わない)に差し替えてテストを実行し、
-  実際にlost updateが起きて期待値と食い違う(Red、実測139万→13万台まで低下)ことを
-  確認した上で、`fetch_add()`に戻して常に一致する(Green)ことを確認した。
+  実際にlost updateが起きて期待値(800000)を大きく下回る値(Red、実測139725)に
+  なることを確認した上で、`fetch_add()`に戻して常に一致する(Green)ことを
+  確認した。
 - `test/atomic_max_test.cpp`:
   - `SingleThreadKeepsLargerValue`: 単一スレッドでの基本動作(小さい値では
     更新されない、大きい値では更新される)を確認。
-  - `DoesNotRegressWhenTwoThreadsRaceSimultaneously`: 2スレッドを同時に開始させ、
-    大きい値(800)を渡した側と小さい値(200)を渡した側が競合しても、最終的に
-    大きい方(800)が残ることを確認。`load()`→比較→`store()`を分割した素朴な
-    実装に、値が大きいほど短く小さいほど長くスリープする一時的な仕込みを入れて
-    確実に競合を再現させ、大きい値が先にstoreされた後、古い値を読んでいた側の
-    小さい値のstoreで上書きされてしまう(Red、200に巻き戻る)ことを実測で
-    確認した上で、`compare_exchange_weak`ループに置き換えて解消した(Green)。
+  - `DoesNotRegressWhenTwoThreadsRaceSimultaneously`: `UpdateMaxAtomic`に
+    テスト専用の`afterLoadHook`(load()直後に一度だけ呼ばれるフック、通常の
+    呼び出しでは省略可能)を追加し、「①big/small両方がload()を完了する
+    (=両方とも古い値-1を読む) ②bigが先にstoreを完了する ③bigの完了を
+    確認してからsmallが古いcurrentのままstoreを試みる」という順序を
+    決定的に(タイミングに依存せず100%)再現した上で、最終的に大きい方
+    (800)が残ることを確認する。単に開始タイミングを揃えるだけの
+    `start`フラグでは、両方がload()を完了する前にどちらかがstoreまで
+    進んでしまう順序を排除できず、壊れた実装でも偶然テストが通って
+    しまいTOCTOU回帰を確実には検出できなかった(Copilotレビュー指摘)。
+    `load()`→比較→`store()`を分割した素朴な実装に差し替えてテストを実行し、
+    上記の決定的な順序下で5回連続100%再現して失敗する(Red、200に巻き戻る)
+    ことを確認した上で、`compare_exchange_weak`ループに置き換えて解消した
+    (Green、5回連続100%成功)。
   - `ConvergesToActualMaximumUnderContention`: 16スレッド×3000回、乱数値で
     競合させても最終値が実際の最大値と一致することを確認(ストレステスト)。
 - `test/spin_lock_test.cpp`: 8スレッド×100000回、`SpinLock`で保護した非atomicな

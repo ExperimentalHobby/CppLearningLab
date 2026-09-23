@@ -7,9 +7,15 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 
 namespace concurrency {
 
-void UpdateMaxAtomic(std::atomic<int>& target, int candidate);
+// afterLoadHookは、内部でtarget.load()した直後(compare_exchangeループに
+// 入る前)に一度だけ呼ばれる。通常の呼び出しでは省略してよい(デフォルトは
+// 何もしない)。テストから複数スレッドの競合順序を決定的に制御するために
+// 用意している。
+void UpdateMaxAtomic(std::atomic<int>& target, int candidate,
+                      const std::function<void()>& afterLoadHook = nullptr);
 
 }  // namespace concurrency

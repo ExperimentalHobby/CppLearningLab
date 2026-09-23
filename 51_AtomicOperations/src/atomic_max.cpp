@@ -2,8 +2,11 @@
 
 namespace concurrency {
 
-void UpdateMaxAtomic(std::atomic<int>& target, int candidate) {
+void UpdateMaxAtomic(std::atomic<int>& target, int candidate, const std::function<void()>& afterLoadHook) {
     int current = target.load(std::memory_order_relaxed);
+    if (afterLoadHook) {
+        afterLoadHook();
+    }
     // compare_exchange_weak(current, candidate)は「targetが今もcurrentの
     // ままなら原子的にcandidateへ書き換え、trueを返す」「他スレッドの
     // 割り込みでtargetが既に変わっていればfalseを返し、currentを最新値
